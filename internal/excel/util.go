@@ -37,6 +37,39 @@ func NormalizeRange(rangeStr string) string {
 	return fmt.Sprintf("%s:%s", startCell, endCell)
 }
 
+func IsEmptyWorksheet(worksheet Worksheet, usedRange string) (bool, error) {
+	if usedRange == "" {
+		return true, nil
+	}
+
+	startCol, startRow, endCol, endRow, err := ParseRange(usedRange)
+	if err != nil {
+		return false, err
+	}
+	if startCol != endCol || startRow != endRow {
+		return false, nil
+	}
+
+	cell, err := excelize.CoordinatesToCellName(startCol, startRow)
+	if err != nil {
+		return false, err
+	}
+
+	value, err := worksheet.GetValue(cell)
+	if err != nil {
+		return false, err
+	}
+	if value != "" {
+		return false, nil
+	}
+
+	formula, err := worksheet.GetFormula(cell)
+	if err != nil {
+		return false, err
+	}
+	return formula == "", nil
+}
+
 func FileIsNotWritable(absolutePath string) bool {
 	f, err := os.OpenFile(path.Clean(absolutePath), os.O_WRONLY, os.ModePerm)
 	if err != nil {

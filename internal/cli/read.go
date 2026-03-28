@@ -11,20 +11,23 @@ import (
 )
 
 func runRead(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: excel-cli read <file> <sheet> [--formula] [--style]")
+	}
+
 	fs := flag.NewFlagSet("read", flag.ContinueOnError)
 	showFormula := fs.Bool("formula", false, "Show formulas instead of values")
 	showStyle := fs.Bool("style", false, "Include cell style information")
 
-	if err := fs.Parse(args); err != nil {
+	filePath := args[0]
+	sheetName := args[1]
+
+	if err := fs.Parse(args[2:]); err != nil {
 		return err
 	}
-	remaining := fs.Args()
-	if len(remaining) < 2 {
+	if len(fs.Args()) != 0 {
 		return fmt.Errorf("usage: excel-cli read <file> <sheet> [--formula] [--style]")
 	}
-
-	filePath := remaining[0]
-	sheetName := remaining[1]
 
 	absPath, err := filepath.Abs(filePath)
 	if err != nil {
@@ -47,7 +50,11 @@ func runRead(args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get sheet dimension: %w", err)
 	}
-	if usedRange == "" {
+	isEmpty, err := excel.IsEmptyWorksheet(worksheet, usedRange)
+	if err != nil {
+		return fmt.Errorf("failed to inspect sheet contents: %w", err)
+	}
+	if isEmpty {
 		return fmt.Errorf("sheet %q is empty", sheetName)
 	}
 

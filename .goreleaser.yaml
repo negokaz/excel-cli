@@ -1,0 +1,21 @@
+version: 2
+
+builds:
+  - id: excel-cli
+    binary: excel-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+dist: dist
+
+release:
+  disable: true

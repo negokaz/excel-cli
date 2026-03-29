@@ -1,0 +1,32 @@
+{
+  "name": "@negokaz/excel-cli",
+  "version": "0.1.0",
+  "description": "CLI tool for Excel operations",
+  "license": "MIT",
+  "bin": {
+    "excel-cli": "dist/launcher.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "goreleaser build --snapshot --clean && tsc",
+    "test": "go test ./... && jest --runInBand",
+    "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0",
+    "@types/jest": "^29.0.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": ["**/launcher/**/*.test.ts"]
+  }
+}

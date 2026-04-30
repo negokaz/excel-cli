@@ -274,6 +274,11 @@ func (o *OleWorksheet) GetDimention() (string, error) {
 }
 
 func (o *OleWorksheet) CapturePicture(captureRange string) (string, error) {
+	// CopyPicture(xlScreen) captures the screen appearance, so ScreenUpdating
+	// must be enabled to get a non-blank image.
+	oleutil.MustPutProperty(o.excel.application, "ScreenUpdating", true)
+	defer oleutil.MustPutProperty(o.excel.application, "ScreenUpdating", false)
+
 	r := oleutil.MustGetProperty(o.worksheet, "Range", captureRange).ToIDispatch()
 	defer r.Release()
 	_, err := oleutil.CallMethod(r, "CopyPicture", int(1), int(2))

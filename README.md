@@ -18,6 +18,7 @@ npm install -g @negokaz/excel-cli
 excel-cli list <file>
 excel-cli read <file> <sheet> [options]
 excel-cli write <file> <sheet> <range> <values> [--newsheet]
+excel-cli capture <file> <sheet> [range]
 ```
 
 ### `list` — List sheets
@@ -81,6 +82,27 @@ excel-cli write book.xlsx Sheet1 A1:C2 '[["Name","Age","City"],["Alice",30,"Toky
 # Write to a new sheet
 excel-cli write book.xlsx NewSheet A1 '[["Hello"]]' --newsheet
 ```
+
+### `capture` — Capture a screenshot of a sheet
+
+**[Windows only]** Takes a screenshot of the specified range in an Excel sheet and saves it as a PNG file. Prints the absolute path of the output file to stdout.
+
+```sh
+excel-cli capture book.xlsx Sheet1
+```
+
+The output is written to:
+```
+.excel-cli/capture-<timestamp>.png
+```
+
+You can also specify a range:
+
+```sh
+excel-cli capture book.xlsx Sheet1 A1:C10
+```
+
+If `range` is omitted, the entire used range of the sheet is captured.
 
 ## Supported Platforms
 

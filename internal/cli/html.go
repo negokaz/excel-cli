@@ -331,12 +331,14 @@ func convertToYAMLFlow(value any) string {
 func createHTMLTableOfValues(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
 	return createHTMLTable(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetValue(cell) },
+		ws.GetMergedCells,
 	)
 }
 
 func createHTMLTableOfFormula(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
 	return createHTMLTable(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetFormula(cell) },
+		ws.GetMergedCells,
 	)
 }
 
@@ -344,6 +346,7 @@ func createHTMLTableOfValuesWithStyle(ws excel.Worksheet, startCol, startRow, en
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetValue(cell) },
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
+		ws.GetMergedCells,
 	)
 }
 
@@ -351,22 +354,54 @@ func createHTMLTableOfFormulaWithStyle(ws excel.Worksheet, startCol, startRow, e
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetFormula(cell) },
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
+		ws.GetMergedCells,
 	)
 }
 
 func createHTMLTable(
 	startCol, startRow, endCol, endRow int,
 	extractor func(string) (string, error),
+	mergedCellsGetter func() ([]excel.MergedCell, error),
 ) (string, error) {
-	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow, extractor, nil)
+	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow, extractor, nil, mergedCellsGetter)
 }
 
 func createHTMLTableWithStyle(
 	startCol, startRow, endCol, endRow int,
 	extractor func(string) (string, error),
 	styleExtractor func(string) (*excel.CellStyle, error),
+	mergedCellsGetter func() ([]excel.MergedCell, error),
 ) (string, error) {
 	registry := newStyleRegistry()
+
+	type cellKey struct{ col, row int }
+	type mergeSpan struct{ colspan, rowspan int }
+
+	mergeSpanMap := make(map[cellKey]mergeSpan)
+	skipCells := make(map[cellKey]struct{})
+
+	if mergedCellsGetter != nil {
+		mergedCells, err := mergedCellsGetter()
+		if err != nil {
+			return "", fmt.Errorf("failed to get merged cells: %w", err)
+		}
+		for _, mc := range mergedCells {
+			colspan := mc.EndCol - mc.StartCol + 1
+			rowspan := mc.EndRow - mc.StartRow + 1
+			if colspan <= 1 && rowspan <= 1 {
+				continue
+			}
+			mergeSpanMap[cellKey{mc.StartCol, mc.StartRow}] = mergeSpan{colspan, rowspan}
+			for r := mc.StartRow; r <= mc.EndRow; r++ {
+				for c := mc.StartCol; c <= mc.EndCol; c++ {
+					if r == mc.StartRow && c == mc.StartCol {
+						continue
+					}
+					skipCells[cellKey{c, r}] = struct{}{}
+				}
+			}
+		}
+	}
 
 	var table strings.Builder
 	table.WriteString("<table>\n<tr><th></th>")
@@ -380,19 +415,31 @@ func createHTMLTableWithStyle(
 		table.WriteString("<tr>")
 		table.WriteString(fmt.Sprintf("<th>%d</th>", row))
 		for col := startCol; col <= endCol; col++ {
+			if _, skip := skipCells[cellKey{col, row}]; skip {
+				continue
+			}
 			axis, _ := excelize.CoordinatesToCellName(col, row)
 			value, _ := extractor(axis)
 
-			tdTag := "<td>"
+			tdTag := "<td"
+			if span, ok := mergeSpanMap[cellKey{col, row}]; ok {
+				if span.colspan > 1 {
+					tdTag += fmt.Sprintf(` colspan="%d"`, span.colspan)
+				}
+				if span.rowspan > 1 {
+					tdTag += fmt.Sprintf(` rowspan="%d"`, span.rowspan)
+				}
+			}
 			if styleExtractor != nil {
 				cellStyle, err := styleExtractor(axis)
 				if err == nil && cellStyle != nil {
 					styleIDs := registry.registerStyle(cellStyle)
 					if len(styleIDs) > 0 {
-						tdTag = fmt.Sprintf(`<td style-ref="%s">`, strings.Join(styleIDs, " "))
+						tdTag += fmt.Sprintf(` style-ref="%s"`, strings.Join(styleIDs, " "))
 					}
 				}
 			}
+			tdTag += ">"
 			table.WriteString(fmt.Sprintf("%s%s</td>", tdTag, strings.ReplaceAll(html.EscapeString(value), "\n", "<br>")))
 		}
 		table.WriteString("</tr>\n")

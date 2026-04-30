@@ -133,6 +133,42 @@ func TestConvertToYAMLFlowAndCalculateYAMLHashAreStable(t *testing.T) {
 	}
 }
 
+func TestCreateHTMLTableOfValuesWithMergedCells(t *testing.T) {
+	t.Parallel()
+
+	ws := openHTMLTestWorksheet(t, func(file *excelize.File) {
+		if err := file.SetCellValue("Sheet1", "A1", "merged"); err != nil {
+			t.Fatalf("failed to set A1: %v", err)
+		}
+		if err := file.MergeCell("Sheet1", "A1", "B2"); err != nil {
+			t.Fatalf("failed to merge A1:B2: %v", err)
+		}
+		if err := file.SetCellValue("Sheet1", "C1", "other"); err != nil {
+			t.Fatalf("failed to set C1: %v", err)
+		}
+	})
+
+	table, err := createHTMLTableOfValues(ws, 1, 1, 3, 2)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !strings.Contains(table, `colspan="2"`) {
+		t.Fatalf("expected colspan=2, got %s", table)
+	}
+	if !strings.Contains(table, `rowspan="2"`) {
+		t.Fatalf("expected rowspan=2, got %s", table)
+	}
+	// Covered cells (B1, A2, B2) must not appear as separate <td> elements
+	// The table should have fewer <td> elements than cells in the range
+	tdCount := strings.Count(table, "<td")
+	// 3 cols x 2 rows = 6 cells, but B1/A2/B2 are covered → 3 <td> elements
+	if tdCount != 3 {
+		t.Fatalf("expected 3 <td> elements (merged region + C1 + C2), got %d in:\n%s", tdCount, table)
+	}
+}
+
+
 func openHTMLTestWorksheet(t *testing.T, configure func(file *excelize.File)) excel.Worksheet {
 	t.Helper()
 

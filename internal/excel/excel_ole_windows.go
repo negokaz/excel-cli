@@ -16,6 +16,7 @@ import (
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
 	"github.com/skanehira/clipboard-image"
+	"github.com/xuri/excelize/v2"
 )
 
 type OleExcel struct {
@@ -436,6 +437,62 @@ func (o *OleWorksheet) SetCellStyle(cell string, style *CellStyle) error {
 		oleutil.PutProperty(rng, "NumberFormat", *style.NumFmt)
 	}
 	return nil
+}
+
+func (o *OleWorksheet) GetMergedCells() ([]MergedCell, error) {
+	usedRangeDisp := oleutil.MustGetProperty(o.worksheet, "UsedRange").ToIDispatch()
+	defer usedRangeDisp.Release()
+
+	seen := make(map[string]struct{})
+	var result []MergedCell
+
+	rows := oleutil.MustGetProperty(usedRangeDisp, "Rows").ToIDispatch()
+	defer rows.Release()
+	rowCount := int(oleutil.MustGetProperty(rows, "Count").Val)
+
+	cols := oleutil.MustGetProperty(usedRangeDisp, "Columns").ToIDispatch()
+	defer cols.Release()
+	colCount := int(oleutil.MustGetProperty(cols, "Count").Val)
+
+	usedRangeAddress := NormalizeRange(oleutil.MustGetProperty(usedRangeDisp, "Address").ToString())
+	startCol, startRow, _, _, err := ParseRange(usedRangeAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse used range: %w", err)
+	}
+
+	for r := 0; r < rowCount; r++ {
+		for c := 0; c < colCount; c++ {
+			col := startCol + c
+			row := startRow + r
+			cellName, _ := excelize.CoordinatesToCellName(col, row)
+			cellRng := oleutil.MustGetProperty(o.worksheet, "Range", cellName).ToIDispatch()
+			isMerged := oleutil.MustGetProperty(cellRng, "MergeCells").Value()
+			cellRng.Release()
+
+			merged, ok := isMerged.(bool)
+			if !ok || !merged {
+				continue
+			}
+
+			cellRng2 := oleutil.MustGetProperty(o.worksheet, "Range", cellName).ToIDispatch()
+			mergeArea := oleutil.MustGetProperty(cellRng2, "MergeArea").ToIDispatch()
+			cellRng2.Release()
+			areaAddr := NormalizeRange(oleutil.MustGetProperty(mergeArea, "Address").ToString())
+			mergeArea.Release()
+
+			if _, exists := seen[areaAddr]; exists {
+				continue
+			}
+			seen[areaAddr] = struct{}{}
+
+			sc, sr, ec, er, err := ParseRange(areaAddr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse merge area %q: %w", areaAddr, err)
+			}
+			result = append(result, MergedCell{StartCol: sc, StartRow: sr, EndCol: ec, EndRow: er})
+		}
+	}
+	return result, nil
 }
 
 func bgrToRgb(bgrColor float64) string {

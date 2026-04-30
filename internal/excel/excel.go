@@ -27,6 +27,16 @@ type Worksheet interface {
 	AddTable(tableRange, tableName string) error
 	GetCellStyle(cell string) (*CellStyle, error)
 	SetCellStyle(cell string, style *CellStyle) error
+	GetMergedCells() ([]MergedCell, error)
+}
+
+// MergedCell represents a merged cell region in a worksheet.
+// All coordinates are 1-based (column 1 = A, row 1 = first row).
+type MergedCell struct {
+	StartCol int
+	StartRow int
+	EndCol   int
+	EndRow   int
 }
 
 type Table struct {

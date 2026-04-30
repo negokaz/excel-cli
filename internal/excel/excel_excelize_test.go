@@ -173,6 +173,41 @@ func TestExcelizeWorksheetCapturePictureReturnsUnsupportedError(t *testing.T) {
 	}
 }
 
+func TestExcelizeWorksheetGetMergedCellsReturnsMergedAreas(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	workbookPath := filepath.Join(tempDir, "merge-test.xlsx")
+	file := excelize.NewFile()
+	if err := file.MergeCell("Sheet1", "A1", "C2"); err != nil {
+		t.Fatalf("failed to merge cells: %v", err)
+	}
+	if err := file.SaveAs(workbookPath); err != nil {
+		t.Fatalf("failed to save: %v", err)
+	}
+	_ = file.Close()
+
+	reopened, err := excelize.OpenFile(workbookPath)
+	if err != nil {
+		t.Fatalf("failed to open: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+
+	ws := &ExcelizeWorksheet{file: reopened, sheetName: "Sheet1"}
+	merges, err := ws.GetMergedCells()
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if len(merges) != 1 {
+		t.Fatalf("expected 1 merged area, got %d", len(merges))
+	}
+	m := merges[0]
+	if m.StartCol != 1 || m.StartRow != 1 || m.EndCol != 3 || m.EndRow != 2 {
+		t.Fatalf("unexpected merge area: %+v", m)
+	}
+}
+
+
 func createExcelizeTestWorkbook(t *testing.T) string {
 	t.Helper()
 

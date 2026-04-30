@@ -398,6 +398,31 @@ func fillShadingNameToInt(shading FillShading) int {
 	return 0
 }
 
+func (w *ExcelizeWorksheet) GetMergedCells() ([]MergedCell, error) {
+	excelizeMerges, err := w.file.GetMergeCells(w.sheetName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get merge cells: %w", err)
+	}
+	result := make([]MergedCell, 0, len(excelizeMerges))
+	for _, m := range excelizeMerges {
+		startCol, startRow, err := excelize.CellNameToCoordinates(m.GetStartAxis())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse merge start axis %q: %w", m.GetStartAxis(), err)
+		}
+		endCol, endRow, err := excelize.CellNameToCoordinates(m.GetEndAxis())
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse merge end axis %q: %w", m.GetEndAxis(), err)
+		}
+		result = append(result, MergedCell{
+			StartCol: startCol,
+			StartRow: startRow,
+			EndCol:   endCol,
+			EndRow:   endRow,
+		})
+	}
+	return result, nil
+}
+
 func (w *ExcelizeWorksheet) updateDimension(updatedCell string) error {
 	dimension, err := w.file.GetSheetDimension(w.sheetName)
 	if err != nil {

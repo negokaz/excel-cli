@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/goccy/go-yaml"
 	"github.com/xuri/excelize/v2"
 
 	"github.com/negokaz/excel-cli/internal/excel"
@@ -17,12 +16,13 @@ import (
 
 // HTMLPageParams holds parameters for building a complete HTML page.
 type HTMLPageParams struct {
-	FilePath    string
-	SheetName   string
-	UsedRange   string
-	Backend     string
-	GeneratedAt time.Time
-	TableHTML   string
+	FilePath      string
+	SheetName     string
+	UsedRange     string
+	Backend       string
+	GeneratedAt   time.Time
+	TableHTML     string
+	StylesheetCSS string
 }
 
 func buildHTMLPage(p HTMLPageParams) string {
@@ -46,7 +46,11 @@ table { border-collapse: collapse; white-space: nowrap; }
 th, td { border: 1px solid #ccc; padding: 2px 6px; min-width: 40px; }
 th { background: #f0f0f0; font-weight: bold; text-align: center; }
 tr:hover td { background: #fffbe6; }
-</style>
+`)
+	if p.StylesheetCSS != "" {
+		sb.WriteString(p.StylesheetCSS)
+	}
+	sb.WriteString(`</style>
 </head>
 <body>
 <h1>`)
@@ -160,20 +164,17 @@ func (sr *styleRegistry) registerBorderStyle(borders []excel.Border) string {
 	if len(borders) == 0 {
 		return ""
 	}
-	yamlStr := convertToYAMLFlow(borders)
-	if yamlStr == "" {
+	cssProps := bordersToCSSProps(borders)
+	if cssProps == "" {
 		return ""
 	}
-	styleHash := calculateYAMLHash(yamlStr)
-	if styleHash == "" {
-		return ""
-	}
+	styleHash := calculateHash(cssProps)
 	if existingID, ok := sr.borderHashToID[styleHash]; ok {
 		return existingID
 	}
 	sr.borderCounter++
 	styleID := fmt.Sprintf("b%d", sr.borderCounter)
-	sr.borderStyles[styleID] = yamlStr
+	sr.borderStyles[styleID] = cssProps
 	sr.borderHashToID[styleHash] = styleID
 	return styleID
 }
@@ -182,20 +183,17 @@ func (sr *styleRegistry) registerFontStyle(font *excel.FontStyle) string {
 	if font == nil {
 		return ""
 	}
-	yamlStr := convertToYAMLFlow(font)
-	if yamlStr == "" {
+	cssProps := fontToCSSProps(font)
+	if cssProps == "" {
 		return ""
 	}
-	styleHash := calculateYAMLHash(yamlStr)
-	if styleHash == "" {
-		return ""
-	}
+	styleHash := calculateHash(cssProps)
 	if existingID, ok := sr.fontHashToID[styleHash]; ok {
 		return existingID
 	}
 	sr.fontCounter++
 	styleID := fmt.Sprintf("f%d", sr.fontCounter)
-	sr.fontStyles[styleID] = yamlStr
+	sr.fontStyles[styleID] = cssProps
 	sr.fontHashToID[styleHash] = styleID
 	return styleID
 }
@@ -204,20 +202,17 @@ func (sr *styleRegistry) registerFillStyle(fill *excel.FillStyle) string {
 	if fill == nil || fill.Type == "" {
 		return ""
 	}
-	yamlStr := convertToYAMLFlow(fill)
-	if yamlStr == "" {
+	cssProps := fillToCSSProps(fill)
+	if cssProps == "" {
 		return ""
 	}
-	styleHash := calculateYAMLHash(yamlStr)
-	if styleHash == "" {
-		return ""
-	}
+	styleHash := calculateHash(cssProps)
 	if existingID, ok := sr.fillHashToID[styleHash]; ok {
 		return existingID
 	}
 	sr.fillCounter++
 	styleID := fmt.Sprintf("l%d", sr.fillCounter)
-	sr.fillStyles[styleID] = yamlStr
+	sr.fillStyles[styleID] = cssProps
 	sr.fillHashToID[styleHash] = styleID
 	return styleID
 }
@@ -226,16 +221,14 @@ func (sr *styleRegistry) registerNumFmtStyle(numFmt string) string {
 	if numFmt == "" {
 		return ""
 	}
-	styleHash := calculateYAMLHash(numFmt)
-	if styleHash == "" {
-		return ""
-	}
+	cssProps := numFmtToCSSProp(numFmt)
+	styleHash := calculateHash(cssProps)
 	if existingID, ok := sr.numFmtHashToID[styleHash]; ok {
 		return existingID
 	}
 	sr.numFmtCounter++
 	styleID := fmt.Sprintf("n%d", sr.numFmtCounter)
-	sr.numFmtStyles[styleID] = numFmt
+	sr.numFmtStyles[styleID] = cssProps
 	sr.numFmtHashToID[styleHash] = styleID
 	return styleID
 }
@@ -244,43 +237,37 @@ func (sr *styleRegistry) registerDecimalStyle(decimal int) string {
 	if decimal == 0 {
 		return ""
 	}
-	yamlStr := convertToYAMLFlow(decimal)
-	if yamlStr == "" {
+	cssProps := decimalPlacesToCSSProp(decimal)
+	if cssProps == "" {
 		return ""
 	}
-	styleHash := calculateYAMLHash(yamlStr)
-	if styleHash == "" {
-		return ""
-	}
+	styleHash := calculateHash(cssProps)
 	if existingID, ok := sr.decimalHashToID[styleHash]; ok {
 		return existingID
 	}
 	sr.decimalCounter++
 	styleID := fmt.Sprintf("d%d", sr.decimalCounter)
-	sr.decimalStyles[styleID] = yamlStr
+	sr.decimalStyles[styleID] = cssProps
 	sr.decimalHashToID[styleHash] = styleID
 	return styleID
 }
 
-func (sr *styleRegistry) generateStyleDefinitions() string {
+func (sr *styleRegistry) generateStylesheet() string {
 	totalCount := len(sr.borderStyles) + len(sr.fontStyles) + len(sr.fillStyles) + len(sr.numFmtStyles) + len(sr.decimalStyles)
 	if totalCount == 0 {
 		return ""
 	}
 
 	var result strings.Builder
-	result.WriteString("<h2>Style Definitions</h2>\n")
-	result.WriteString("<div class=\"style-definitions\">\n")
-	result.WriteString(sr.generateStyleDefTag(sr.borderStyles, "border"))
-	result.WriteString(sr.generateStyleDefTag(sr.fontStyles, "font"))
-	result.WriteString(sr.generateStyleDefTag(sr.fillStyles, "fill"))
-	result.WriteString(sr.generateStyleDefTag(sr.numFmtStyles, "numFmt"))
-	result.WriteString(sr.generateStyleDefTag(sr.decimalStyles, "decimalPlaces"))
-	result.WriteString("</div>\n\n")
+	result.WriteString(sr.generateCSSRules(sr.borderStyles))
+	result.WriteString(sr.generateCSSRules(sr.fontStyles))
+	result.WriteString(sr.generateCSSRules(sr.fillStyles))
+	result.WriteString(sr.generateCSSRules(sr.numFmtStyles))
+	result.WriteString(sr.generateCSSRules(sr.decimalStyles))
 	return result.String()
 }
 
-func (sr *styleRegistry) generateStyleDefTag(styles map[string]string, styleLabel string) string {
+func (sr *styleRegistry) generateCSSRules(styles map[string]string) string {
 	if len(styles) == 0 {
 		return ""
 	}
@@ -293,12 +280,180 @@ func (sr *styleRegistry) generateStyleDefTag(styles map[string]string, styleLabe
 
 	var result strings.Builder
 	for _, styleID := range styleIDs {
-		yamlStr := styles[styleID]
-		if yamlStr != "" {
-			result.WriteString(fmt.Sprintf("<code class=\"style language-yaml\" id=\"%s\">%s: %s</code>\n", styleID, styleLabel, html.EscapeString(yamlStr)))
+		cssProps := styles[styleID]
+		if cssProps != "" {
+			result.WriteString(fmt.Sprintf(".%s { %s }\n", styleID, cssProps))
 		}
 	}
 	return result.String()
+}
+
+// --- CSS conversion helpers ---
+
+func normalizeCSSColor(color string) string {
+	color = strings.TrimSpace(color)
+	if color == "" {
+		return ""
+	}
+	color = strings.TrimPrefix(color, "#")
+	switch len(color) {
+	case 6:
+		return "#" + strings.ToLower(color)
+	case 8:
+		// AARRGGBB: strip the alpha channel
+		return "#" + strings.ToLower(color[2:])
+	default:
+		return ""
+	}
+}
+
+func borderStyleToCSS(bs excel.BorderStyle) string {
+	switch bs {
+	case excel.BorderStyleNone:
+		return ""
+	case excel.BorderStyleContinuous:
+		return "1px solid"
+	case excel.BorderStyleDash:
+		return "1px dashed"
+	case excel.BorderStyleDot:
+		return "1px dotted"
+	case excel.BorderStyleDouble:
+		return "3px double"
+	case excel.BorderStyleDashDot, excel.BorderStyleDashDotDot, excel.BorderStyleSlantDashDot:
+		return "1px dashed"
+	case excel.BorderStyleMediumDashDot, excel.BorderStyleMediumDashDotDot:
+		return "2px dashed"
+	default:
+		return "1px solid"
+	}
+}
+
+func bordersToCSSProps(borders []excel.Border) string {
+	var props []string
+	for _, b := range borders {
+		var cssSide string
+		switch b.Type {
+		case excel.BorderTypeLeft:
+			cssSide = "border-left"
+		case excel.BorderTypeRight:
+			cssSide = "border-right"
+		case excel.BorderTypeTop:
+			cssSide = "border-top"
+		case excel.BorderTypeBottom:
+			cssSide = "border-bottom"
+		default:
+			// diagonalDown and diagonalUp have no CSS equivalent
+			continue
+		}
+		cssStyle := borderStyleToCSS(b.Style)
+		if cssStyle == "" {
+			continue
+		}
+		color := normalizeCSSColor(b.Color)
+		if color != "" {
+			props = append(props, fmt.Sprintf("%s: %s %s", cssSide, cssStyle, color))
+		} else {
+			props = append(props, fmt.Sprintf("%s: %s", cssSide, cssStyle))
+		}
+	}
+	return strings.Join(props, "; ")
+}
+
+func fontToCSSProps(font *excel.FontStyle) string {
+	if font == nil {
+		return ""
+	}
+	var props []string
+
+	if font.Bold != nil && *font.Bold {
+		props = append(props, "font-weight: bold")
+	}
+	if font.Italic != nil && *font.Italic {
+		props = append(props, "font-style: italic")
+	}
+
+	var textDecorations []string
+	if font.Underline != nil && *font.Underline != excel.FontUnderlineNone {
+		textDecorations = append(textDecorations, "underline")
+	}
+	if font.Strike != nil && *font.Strike {
+		textDecorations = append(textDecorations, "line-through")
+	}
+	if len(textDecorations) > 0 {
+		props = append(props, "text-decoration: "+strings.Join(textDecorations, " "))
+	}
+
+	if font.Size != nil && *font.Size > 0 {
+		props = append(props, fmt.Sprintf("font-size: %dpt", *font.Size))
+	}
+	if font.Color != nil {
+		color := normalizeCSSColor(*font.Color)
+		if color != "" {
+			props = append(props, "color: "+color)
+		}
+	}
+	if font.VertAlign != nil {
+		switch *font.VertAlign {
+		case excel.FontVertAlignSuperscript:
+			props = append(props, "vertical-align: super", "font-size: 0.75em")
+		case excel.FontVertAlignSubscript:
+			props = append(props, "vertical-align: sub", "font-size: 0.75em")
+		}
+	}
+
+	return strings.Join(props, "; ")
+}
+
+func fillToCSSProps(fill *excel.FillStyle) string {
+	if fill == nil || fill.Type == "" {
+		return ""
+	}
+
+	switch fill.Type {
+	case excel.FillTypePattern:
+		if fill.Pattern == excel.FillPatternSolid && len(fill.Color) > 0 {
+			color := normalizeCSSColor(fill.Color[0])
+			if color != "" {
+				return "background-color: " + color
+			}
+		}
+	case excel.FillTypeGradient:
+		if len(fill.Color) >= 2 {
+			c1 := normalizeCSSColor(fill.Color[0])
+			c2 := normalizeCSSColor(fill.Color[1])
+			if c1 != "" && c2 != "" {
+				direction := "to right"
+				if fill.Shading != nil {
+					switch *fill.Shading {
+					case excel.FillShadingVertical:
+						direction = "to bottom"
+					case excel.FillShadingHorizontal:
+						direction = "to right"
+					case excel.FillShadingDiagonalDown:
+						direction = "to bottom right"
+					case excel.FillShadingDiagonalUp:
+						direction = "to top right"
+					case excel.FillShadingFromCenter:
+						return fmt.Sprintf("background: radial-gradient(circle, %s, %s)", c1, c2)
+					case excel.FillShadingFromCorner:
+						direction = "to bottom right"
+					}
+				}
+				return fmt.Sprintf("background: linear-gradient(%s, %s, %s)", direction, c1, c2)
+			}
+		}
+	}
+
+	return ""
+}
+
+func numFmtToCSSProp(numFmt string) string {
+	escaped := strings.ReplaceAll(numFmt, `"`, `\"`)
+	return fmt.Sprintf(`--excel-num-fmt: "%s"`, escaped)
+}
+
+func decimalPlacesToCSSProp(decimal int) string {
+	return fmt.Sprintf("--excel-decimal-places: %d", decimal)
 }
 
 func sortStyleIDs(styleIDs []string) {
@@ -309,40 +464,29 @@ func sortStyleIDs(styleIDs []string) {
 	})
 }
 
-func calculateYAMLHash(yamlStr string) string {
-	if yamlStr == "" {
+func calculateHash(s string) string {
+	if s == "" {
 		return ""
 	}
-	hash := md5.Sum([]byte(yamlStr))
+	hash := md5.Sum([]byte(s))
 	return fmt.Sprintf("%x", hash)[:8]
 }
 
-func convertToYAMLFlow(value any) string {
-	if value == nil {
-		return ""
-	}
-	yamlBytes, err := yaml.MarshalWithOptions(value, yaml.Flow(true), yaml.OmitEmpty())
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(strings.ReplaceAll(string(yamlBytes), "\"", ""))
-}
-
-func createHTMLTableOfValues(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
+func createHTMLTableOfValues(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
 	return createHTMLTable(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetValue(cell) },
 		ws.GetMergedCells,
 	)
 }
 
-func createHTMLTableOfFormula(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
+func createHTMLTableOfFormula(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
 	return createHTMLTable(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetFormula(cell) },
 		ws.GetMergedCells,
 	)
 }
 
-func createHTMLTableOfValuesWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
+func createHTMLTableOfValuesWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetValue(cell) },
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
@@ -350,7 +494,7 @@ func createHTMLTableOfValuesWithStyle(ws excel.Worksheet, startCol, startRow, en
 	)
 }
 
-func createHTMLTableOfFormulaWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, error) {
+func createHTMLTableOfFormulaWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
 		func(cell string) (string, error) { return ws.GetFormula(cell) },
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
@@ -362,7 +506,7 @@ func createHTMLTable(
 	startCol, startRow, endCol, endRow int,
 	extractor func(string) (string, error),
 	mergedCellsGetter func() ([]excel.MergedCell, error),
-) (string, error) {
+) (string, string, error) {
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow, extractor, nil, mergedCellsGetter)
 }
 
@@ -371,7 +515,7 @@ func createHTMLTableWithStyle(
 	extractor func(string) (string, error),
 	styleExtractor func(string) (*excel.CellStyle, error),
 	mergedCellsGetter func() ([]excel.MergedCell, error),
-) (string, error) {
+) (string, string, error) {
 	registry := newStyleRegistry()
 
 	type cellKey struct{ col, row int }
@@ -383,7 +527,7 @@ func createHTMLTableWithStyle(
 	if mergedCellsGetter != nil {
 		mergedCells, err := mergedCellsGetter()
 		if err != nil {
-			return "", fmt.Errorf("failed to get merged cells: %w", err)
+			return "", "", fmt.Errorf("failed to get merged cells: %w", err)
 		}
 		for _, mc := range mergedCells {
 			colspan := mc.EndCol - mc.StartCol + 1
@@ -435,7 +579,7 @@ func createHTMLTableWithStyle(
 				if err == nil && cellStyle != nil {
 					styleIDs := registry.registerStyle(cellStyle)
 					if len(styleIDs) > 0 {
-						tdTag += fmt.Sprintf(` style-ref="%s"`, strings.Join(styleIDs, " "))
+						tdTag += fmt.Sprintf(` class="%s"`, strings.Join(styleIDs, " "))
 					}
 				}
 			}
@@ -446,12 +590,7 @@ func createHTMLTableWithStyle(
 	}
 	table.WriteString("</table>")
 
-	var finalResult strings.Builder
-	styleDefinitions := registry.generateStyleDefinitions()
-	if styleDefinitions != "" {
-		finalResult.WriteString(styleDefinitions)
-	}
-	finalResult.WriteString("<h2>Sheet Data</h2>\n")
-	finalResult.WriteString(table.String())
-	return finalResult.String(), nil
+	css := registry.generateStylesheet()
+	tableHTML := "<h2>Sheet Data</h2>\n" + table.String()
+	return tableHTML, css, nil
 }

@@ -63,28 +63,29 @@ func runRead(args []string) error {
 		return fmt.Errorf("failed to parse range: %w", err)
 	}
 
-	var tableHTML string
+	var tableHTML, css string
 	switch {
 	case *showStyle && *showFormula:
-		tableHTML, err = createHTMLTableOfFormulaWithStyle(worksheet, startCol, startRow, endCol, endRow)
+		tableHTML, css, err = createHTMLTableOfFormulaWithStyle(worksheet, startCol, startRow, endCol, endRow)
 	case *showStyle:
-		tableHTML, err = createHTMLTableOfValuesWithStyle(worksheet, startCol, startRow, endCol, endRow)
+		tableHTML, css, err = createHTMLTableOfValuesWithStyle(worksheet, startCol, startRow, endCol, endRow)
 	case *showFormula:
-		tableHTML, err = createHTMLTableOfFormula(worksheet, startCol, startRow, endCol, endRow)
+		tableHTML, css, err = createHTMLTableOfFormula(worksheet, startCol, startRow, endCol, endRow)
 	default:
-		tableHTML, err = createHTMLTableOfValues(worksheet, startCol, startRow, endCol, endRow)
+		tableHTML, css, err = createHTMLTableOfValues(worksheet, startCol, startRow, endCol, endRow)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to read sheet: %w", err)
 	}
 
 	page := buildHTMLPage(HTMLPageParams{
-		FilePath:    absPath,
-		SheetName:   sheetName,
-		UsedRange:   usedRange,
-		Backend:     workbook.GetBackendName(),
-		GeneratedAt: time.Now(),
-		TableHTML:   tableHTML,
+		FilePath:      absPath,
+		SheetName:     sheetName,
+		UsedRange:     usedRange,
+		Backend:       workbook.GetBackendName(),
+		GeneratedAt:   time.Now(),
+		TableHTML:     tableHTML,
+		StylesheetCSS: css,
 	})
 
 	outPath, err := writeOutput(page)

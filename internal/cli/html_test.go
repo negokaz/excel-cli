@@ -47,7 +47,7 @@ func TestCreateHTMLTableOfValuesIncludesHeadersAndLineBreaks(t *testing.T) {
 		}
 	})
 
-	table, err := createHTMLTableOfValues(ws, 1, 1, 2, 2)
+	table, _, err := createHTMLTableOfValues(ws, 1, 1, 2, 2)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
@@ -84,52 +84,48 @@ func TestCreateHTMLTableWithStyleDeduplicatesStyleDefinitions(t *testing.T) {
 		}
 	})
 
-	table, err := createHTMLTableOfValuesWithStyle(ws, 1, 1, 2, 1)
+	tableHTML, css, err := createHTMLTableOfValuesWithStyle(ws, 1, 1, 2, 1)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if strings.Count(table, `id="b1"`) != 1 {
-		t.Fatalf("expected one border definition, got %s", table)
+	// Border CSS rule should be defined exactly once (deduplication)
+	if strings.Count(css, ".b1 {") != 1 {
+		t.Fatalf("expected exactly one b1 CSS rule, got css: %s", css)
 	}
-	if strings.Count(table, `style-ref="b1 f1 l1"`) != 2 {
-		t.Fatalf("expected both cells to reuse the same style-ref set, got %s", table)
+	// Both cells should reference the b1 class
+	if strings.Count(tableHTML, `class="b1`) != 2 {
+		t.Fatalf("expected both cells to use b1 class, got: %s", tableHTML)
 	}
 }
 
-func TestGenerateStyleDefinitionsSortsStableIDs(t *testing.T) {
+func TestGenerateStylesheetSortsStableIDs(t *testing.T) {
 	t.Parallel()
 
 	registry := newStyleRegistry()
-	registry.borderStyles["b2"] = "second"
-	registry.borderStyles["b1"] = "first"
+	registry.borderStyles["b2"] = "border-right: 1px solid"
+	registry.borderStyles["b1"] = "border-left: 1px solid"
 
-	definitions := registry.generateStyleDefinitions()
+	css := registry.generateStylesheet()
 
-	firstIndex := strings.Index(definitions, `id="b1"`)
-	secondIndex := strings.Index(definitions, `id="b2"`)
+	firstIndex := strings.Index(css, ".b1 {")
+	secondIndex := strings.Index(css, ".b2 {")
 	if firstIndex < 0 || secondIndex < 0 || firstIndex > secondIndex {
-		t.Fatalf("expected sorted style definitions, got %s", definitions)
+		t.Fatalf("expected sorted CSS rules, got %s", css)
 	}
 }
 
-func TestConvertToYAMLFlowAndCalculateYAMLHashAreStable(t *testing.T) {
+func TestCalculateHashIsStable(t *testing.T) {
 	t.Parallel()
 
-	value := excel.Border{Type: excel.BorderTypeLeft, Style: excel.BorderStyleContinuous, Color: "#FF0000"}
+	hashA := calculateHash("border-left: 1px solid #ff0000")
+	hashB := calculateHash("border-left: 1px solid #ff0000")
 
-	yamlFlow := convertToYAMLFlow(value)
-	hashA := calculateYAMLHash(yamlFlow)
-	hashB := calculateYAMLHash(yamlFlow)
-
-	if yamlFlow == "" {
-		t.Fatal("expected YAML flow output")
-	}
-	if strings.Contains(yamlFlow, "\"") {
-		t.Fatalf("expected YAML flow without quotes, got %s", yamlFlow)
-	}
 	if hashA == "" || hashA != hashB {
 		t.Fatalf("expected stable hash, got %s and %s", hashA, hashB)
+	}
+	if calculateHash("") != "" {
+		t.Fatal("expected empty string for empty input")
 	}
 }
 

@@ -114,11 +114,11 @@ func TestCLIEndToEnd(t *testing.T) {
 			t.Fatalf("expected style mode to succeed, got %d, stderr=%s", styleResult.exitCode, styleResult.stderr)
 		}
 		styleHTML := readCLIHTML(t, strings.TrimSpace(styleResult.stdout))
-		if !strings.Contains(styleHTML, "Style Definitions") {
-			t.Fatalf("expected style definitions in HTML: %s", styleHTML)
+		if !strings.Contains(styleHTML, "border-left:") {
+			t.Fatalf("expected border CSS rule in HTML: %s", styleHTML)
 		}
-		if !strings.Contains(styleHTML, `style-ref="`) {
-			t.Fatalf("expected style-ref attribute in HTML: %s", styleHTML)
+		if !strings.Contains(styleHTML, `class="b`) {
+			t.Fatalf("expected class attribute on styled cells: %s", styleHTML)
 		}
 
 		bothResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "Data", "--formula", "--style")
@@ -126,7 +126,7 @@ func TestCLIEndToEnd(t *testing.T) {
 			t.Fatalf("expected formula+style mode to succeed, got %d, stderr=%s", bothResult.exitCode, bothResult.stderr)
 		}
 		bothHTML := readCLIHTML(t, strings.TrimSpace(bothResult.stdout))
-		if !strings.Contains(bothHTML, "=SUM(1,2)") || !strings.Contains(bothHTML, `style-ref="`) {
+		if !strings.Contains(bothHTML, "=SUM(1,2)") || !strings.Contains(bothHTML, `class="b`) {
 			t.Fatalf("expected combined formula/style output: %s", bothHTML)
 		}
 	})

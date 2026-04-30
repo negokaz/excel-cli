@@ -1,0 +1,4 @@
+*.exe
+.excel-cli/
+dist
+node_modules/

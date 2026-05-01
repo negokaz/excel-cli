@@ -144,7 +144,7 @@ func TestCreateHTMLTableOfValuesWithMergedCells(t *testing.T) {
 		}
 	})
 
-	table, err := createHTMLTableOfValues(ws, 1, 1, 3, 2)
+	table, _, err := createHTMLTableOfValues(ws, 1, 1, 3, 2)
 
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)

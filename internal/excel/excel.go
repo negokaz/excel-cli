@@ -50,34 +50,34 @@ type PivotTable struct {
 }
 
 type CellStyle struct {
-	Border        []Border   `yaml:"border,omitempty"`
-	Font          *FontStyle `yaml:"font,omitempty"`
-	Fill          *FillStyle `yaml:"fill,omitempty"`
-	NumFmt        *string    `yaml:"numFmt,omitempty"`
-	DecimalPlaces *int       `yaml:"decimalPlaces,omitempty"`
+	Border        []Border   `yaml:"border,omitempty" json:"border,omitempty"`
+	Font          *FontStyle `yaml:"font,omitempty" json:"font,omitempty"`
+	Fill          *FillStyle `yaml:"fill,omitempty" json:"fill,omitempty"`
+	NumFmt        *string    `yaml:"numFmt,omitempty" json:"numFmt,omitempty"`
+	DecimalPlaces *int       `yaml:"decimalPlaces,omitempty" json:"decimalPlaces,omitempty"`
 }
 
 type Border struct {
-	Type  BorderType  `yaml:"type"`
-	Style BorderStyle `yaml:"style,omitempty"`
-	Color string      `yaml:"color,omitempty"`
+	Type  BorderType  `yaml:"type" json:"type"`
+	Style BorderStyle `yaml:"style,omitempty" json:"style,omitempty"`
+	Color string      `yaml:"color,omitempty" json:"color,omitempty"`
 }
 
 type FontStyle struct {
-	Bold      *bool          `yaml:"bold,omitempty"`
-	Italic    *bool          `yaml:"italic,omitempty"`
-	Underline *FontUnderline `yaml:"underline,omitempty"`
-	Size      *int           `yaml:"size,omitempty"`
-	Strike    *bool          `yaml:"strike,omitempty"`
-	Color     *string        `yaml:"color,omitempty"`
-	VertAlign *FontVertAlign `yaml:"vertAlign,omitempty"`
+	Bold      *bool          `yaml:"bold,omitempty" json:"bold,omitempty"`
+	Italic    *bool          `yaml:"italic,omitempty" json:"italic,omitempty"`
+	Underline *FontUnderline `yaml:"underline,omitempty" json:"underline,omitempty"`
+	Size      *int           `yaml:"size,omitempty" json:"size,omitempty"`
+	Strike    *bool          `yaml:"strike,omitempty" json:"strike,omitempty"`
+	Color     *string        `yaml:"color,omitempty" json:"color,omitempty"`
+	VertAlign *FontVertAlign `yaml:"vertAlign,omitempty" json:"vertAlign,omitempty"`
 }
 
 type FillStyle struct {
-	Type    FillType     `yaml:"type,omitempty"`
-	Pattern FillPattern  `yaml:"pattern,omitempty"`
-	Color   []string     `yaml:"color,omitempty"`
-	Shading *FillShading `yaml:"shading,omitempty"`
+	Type    FillType     `yaml:"type,omitempty" json:"type,omitempty"`
+	Pattern FillPattern  `yaml:"pattern,omitempty" json:"pattern,omitempty"`
+	Color   []string     `yaml:"color,omitempty" json:"color,omitempty"`
+	Shading *FillShading `yaml:"shading,omitempty" json:"shading,omitempty"`
 }
 
 // OpenFile opens an Excel file and returns an Excel interface.

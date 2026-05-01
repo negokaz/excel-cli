@@ -11,12 +11,14 @@ Usage:
   excel-cli list <file>
   excel-cli read <file> <sheet> [options]
   excel-cli write <file> <sheet> <range> <values> [--newsheet]
+  excel-cli format <file> <sheet> <range> <styles>
   excel-cli capture <file> <sheet> [range]
 
 Commands:
   list     List all sheets in the Excel file
   read     Read sheet content and save as HTML
   write    Write values to a sheet in the Excel file
+  format   Apply cell styles to a range in the Excel file
   capture  Capture a screenshot of the sheet and save as PNG [Windows only]
 
 Options for read:
@@ -45,6 +47,8 @@ func Run(args []string) error {
 		return runRead(args[1:])
 	case "write":
 		return runWrite(args[1:])
+	case "format":
+		return runFormat(args[1:])
 	case "capture":
 		return runCapture(args[1:])
 	case "help", "--help", "-h":

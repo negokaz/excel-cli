@@ -18,6 +18,7 @@ npm install -g @negokaz/excel-cli
 excel-cli list <file>
 excel-cli read <file> <sheet> [options]
 excel-cli write <file> <sheet> <range> <values> [--newsheet]
+excel-cli format <file> <sheet> <range> <styles>
 excel-cli capture <file> <sheet> [range]
 ```
 
@@ -82,6 +83,38 @@ excel-cli write book.xlsx Sheet1 A1:C2 '[["Name","Age","City"],["Alice",30,"Toky
 # Write to a new sheet
 excel-cli write book.xlsx NewSheet A1 '[["Hello"]]' --newsheet
 ```
+
+### `format` — Apply styles to a cell range
+
+Applies cell styles to a range in an Excel file. The `<styles>` argument must be a JSON 2-dimensional array matching the shape of `<range>`. Use `null` for cells you want to leave unchanged.
+
+```sh
+# Make B2 bold
+excel-cli format book.xlsx Sheet1 B2:B2 '[[{"font":{"bold":true}}]]'
+
+# Fill A1:B1 with yellow background
+excel-cli format book.xlsx Sheet1 A1:B1 '[[ {"fill":{"type":"pattern","pattern":"solid","color":["#FFFF00"]}}, {"fill":{"type":"pattern","pattern":"solid","color":["#FFFF00"]}} ]]'
+
+# Apply italic to B1 only, leave A1 unchanged
+excel-cli format book.xlsx Sheet1 A1:B1 '[[null, {"font":{"italic":true}}]]'
+```
+
+Each style object supports the following properties:
+
+| Property        | Type            | Description                                    |
+|-----------------|-----------------|------------------------------------------------|
+| `font.bold`     | boolean         | Bold text                                      |
+| `font.italic`   | boolean         | Italic text                                    |
+| `font.underline`| string          | Underline style                                |
+| `font.strike`   | boolean         | Strikethrough                                  |
+| `font.size`     | number          | Font size (pt)                                 |
+| `font.color`    | string          | Font color (hex, e.g. `"#FF0000"`)             |
+| `fill.type`     | string          | Fill type (e.g. `"pattern"`)                   |
+| `fill.pattern`  | string          | Fill pattern (e.g. `"solid"`)                  |
+| `fill.color`    | string[]        | Fill color(s) (hex)                            |
+| `border`        | Border[]        | Border definitions (`type`, `style`, `color`)  |
+| `numFmt`        | string          | Number format string                           |
+| `decimalPlaces` | number          | Decimal places for numeric format              |
 
 ### `capture` — Capture a screenshot of a sheet
 

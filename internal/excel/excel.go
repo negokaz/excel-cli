@@ -1,6 +1,9 @@
 package excel
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/xuri/excelize/v2"
 )
 
@@ -78,6 +81,17 @@ type FillStyle struct {
 	Pattern FillPattern  `yaml:"pattern,omitempty" json:"pattern,omitempty"`
 	Color   []string     `yaml:"color,omitempty" json:"color,omitempty"`
 	Shading *FillShading `yaml:"shading,omitempty" json:"shading,omitempty"`
+}
+
+// NewFile creates a new blank Excel workbook at the specified absolute path.
+// Returns an error if the file already exists.
+func NewFile(absoluteFilePath string) error {
+	if _, err := os.Stat(absoluteFilePath); err == nil {
+		return fmt.Errorf("file already exists: %s", absoluteFilePath)
+	}
+	file := excelize.NewFile()
+	defer file.Close()
+	return file.SaveAs(absoluteFilePath)
 }
 
 // OpenFile opens an Excel file and returns an Excel interface.

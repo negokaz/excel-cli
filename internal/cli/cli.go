@@ -8,6 +8,7 @@ import (
 const usage = `excel-cli - Excel file tool
 
 Usage:
+  excel-cli new <file>
   excel-cli list <file>
   excel-cli read <file> <sheet> [options]
   excel-cli write <file> <sheet> <range> <values> [--newsheet]
@@ -15,6 +16,7 @@ Usage:
   excel-cli capture <file> <sheet> [range]
 
 Commands:
+  new      Create a new Excel workbook
   list     List all sheets in the Excel file
   read     Read sheet content and save as HTML
   write    Write values to a sheet in the Excel file
@@ -41,6 +43,8 @@ func Run(args []string) error {
 		return nil
 	}
 	switch args[0] {
+	case "new":
+		return runNew(args[1:])
 	case "list":
 		return runList(args[1:])
 	case "read":

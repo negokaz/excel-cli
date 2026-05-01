@@ -15,11 +15,20 @@ npm install -g @negokaz/excel-cli
 ## Usage
 
 ```
+excel-cli new <file>
 excel-cli list <file>
 excel-cli read <file> <sheet> [options]
 excel-cli write <file> <sheet> <range> <values> [--newsheet]
 excel-cli format <file> <sheet> <range> <styles>
 excel-cli capture <file> <sheet> [range]
+```
+
+### `new` — Create a workbook
+
+Creates a new blank Excel workbook at the specified path. Prints the absolute path of the created file to stdout. Fails if the file already exists.
+
+```sh
+excel-cli new book.xlsx
 ```
 
 ### `list` — List sheets

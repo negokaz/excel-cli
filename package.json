@@ -21,15 +21,18 @@
     "access": "public"
   },
   "devDependencies": {
+    "@types/jest": "^29.0.0",
     "@types/node": "^20.0.0",
+    "foam-cli": "^0.43.0",
     "jest": "^29.0.0",
     "ts-jest": "^29.0.0",
-    "typescript": "^5.0.0",
-    "@types/jest": "^29.0.0"
+    "typescript": "^5.0.0"
   },
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "testMatch": ["**/launcher/**/*.test.ts"]
+    "testMatch": [
+      "**/launcher/**/*.test.ts"
+    ]
   }
 }

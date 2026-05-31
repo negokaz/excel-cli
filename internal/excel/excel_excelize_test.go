@@ -53,33 +53,33 @@ func TestExcelizeWorkbookSupportsReadingAndWriting(t *testing.T) {
 		t.Fatalf("expected Data sheet, got %v", err)
 	}
 
-	value, err := worksheet.GetValue("A1")
+	values, err := worksheet.GetValuesRange("A1:A1")
 	if err != nil {
-		t.Fatalf("expected value, got %v", err)
+		t.Fatalf("expected values, got %v", err)
 	}
-	formula, err := worksheet.GetFormula("B1")
+	formulas, err := worksheet.GetFormulasRange("B1:B1")
 	if err != nil {
-		t.Fatalf("expected formula, got %v", err)
+		t.Fatalf("expected formulas, got %v", err)
 	}
 
-	err = worksheet.SetValue("C3", "new")
+	err = worksheet.SetValuesRange("C3:C3", [][]any{{"new"}})
 	if err != nil {
-		t.Fatalf("expected SetValue to succeed, got %v", err)
+		t.Fatalf("expected SetValuesRange to succeed, got %v", err)
 	}
-	err = worksheet.SetFormula("D4", "=SUM(2,3)")
+	err = worksheet.SetValuesRange("D4:D4", [][]any{{"=SUM(2,3)"}})
 	if err != nil {
-		t.Fatalf("expected SetFormula to succeed, got %v", err)
+		t.Fatalf("expected SetValuesRange (formula) to succeed, got %v", err)
 	}
 	dimension, err := worksheet.GetDimention()
 	if err != nil {
 		t.Fatalf("expected dimension, got %v", err)
 	}
 
-	if value != "plain" {
-		t.Fatalf("expected plain, got %s", value)
+	if values[0][0] != "plain" {
+		t.Fatalf("expected plain, got %s", values[0][0])
 	}
-	if formula != "=SUM(1,2)" {
-		t.Fatalf("expected =SUM(1,2), got %s", formula)
+	if formulas[0][0] != "=SUM(1,2)" {
+		t.Fatalf("expected =SUM(1,2), got %s", formulas[0][0])
 	}
 	if dimension != "A1:D4" {
 		t.Fatalf("expected A1:D4, got %s", dimension)
@@ -206,7 +206,6 @@ func TestExcelizeWorksheetGetMergedCellsReturnsMergedAreas(t *testing.T) {
 		t.Fatalf("unexpected merge area: %+v", m)
 	}
 }
-
 
 func createExcelizeTestWorkbook(t *testing.T) string {
 	t.Helper()

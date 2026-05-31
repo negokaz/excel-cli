@@ -55,19 +55,19 @@ func IsEmptyWorksheet(worksheet Worksheet, usedRange string) (bool, error) {
 		return false, err
 	}
 
-	value, err := worksheet.GetValue(cell)
+	values, err := worksheet.GetValuesRange(cell + ":" + cell)
 	if err != nil {
 		return false, err
 	}
-	if value != "" {
+	if values[0][0] != "" {
 		return false, nil
 	}
 
-	formula, err := worksheet.GetFormula(cell)
+	formulas, err := worksheet.GetFormulasRange(cell + ":" + cell)
 	if err != nil {
 		return false, err
 	}
-	return formula == "", nil
+	return formulas[0][0] == "", nil
 }
 
 func FileIsNotWritable(absolutePath string) bool {

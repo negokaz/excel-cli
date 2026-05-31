@@ -473,33 +473,81 @@ func calculateHash(s string) string {
 }
 
 func createHTMLTableOfValues(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
+	startCell, _ := excelize.CoordinatesToCellName(startCol, startRow)
+	endCell, _ := excelize.CoordinatesToCellName(endCol, endRow)
+	rangeRef := startCell + ":" + endCell
+	matrix, err := ws.GetValuesRange(rangeRef)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get values range: %w", err)
+	}
 	return createHTMLTable(startCol, startRow, endCol, endRow,
-		func(cell string) (string, error) { return ws.GetValue(cell) },
+		matrixExtractor(matrix, startCol, startRow),
 		ws.GetMergedCells,
 	)
 }
 
 func createHTMLTableOfFormula(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
+	startCell, _ := excelize.CoordinatesToCellName(startCol, startRow)
+	endCell, _ := excelize.CoordinatesToCellName(endCol, endRow)
+	rangeRef := startCell + ":" + endCell
+	matrix, err := ws.GetFormulasRange(rangeRef)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get formulas range: %w", err)
+	}
 	return createHTMLTable(startCol, startRow, endCol, endRow,
-		func(cell string) (string, error) { return ws.GetFormula(cell) },
+		matrixExtractor(matrix, startCol, startRow),
 		ws.GetMergedCells,
 	)
 }
 
 func createHTMLTableOfValuesWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
+	startCell, _ := excelize.CoordinatesToCellName(startCol, startRow)
+	endCell, _ := excelize.CoordinatesToCellName(endCol, endRow)
+	rangeRef := startCell + ":" + endCell
+	matrix, err := ws.GetValuesRange(rangeRef)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get values range: %w", err)
+	}
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
-		func(cell string) (string, error) { return ws.GetValue(cell) },
+		matrixExtractor(matrix, startCol, startRow),
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
 		ws.GetMergedCells,
 	)
 }
 
 func createHTMLTableOfFormulaWithStyle(ws excel.Worksheet, startCol, startRow, endCol, endRow int) (string, string, error) {
+	startCell, _ := excelize.CoordinatesToCellName(startCol, startRow)
+	endCell, _ := excelize.CoordinatesToCellName(endCol, endRow)
+	rangeRef := startCell + ":" + endCell
+	matrix, err := ws.GetFormulasRange(rangeRef)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get formulas range: %w", err)
+	}
 	return createHTMLTableWithStyle(startCol, startRow, endCol, endRow,
-		func(cell string) (string, error) { return ws.GetFormula(cell) },
+		matrixExtractor(matrix, startCol, startRow),
 		func(cell string) (*excel.CellStyle, error) { return ws.GetCellStyle(cell) },
 		ws.GetMergedCells,
 	)
+}
+
+// matrixExtractor returns a per-cell extractor function backed by a pre-loaded 2D string matrix.
+// startCol and startRow are 1-based coordinates of the top-left cell of the matrix.
+func matrixExtractor(matrix [][]string, startCol, startRow int) func(string) (string, error) {
+	return func(cell string) (string, error) {
+		col, row, err := excelize.CellNameToCoordinates(cell)
+		if err != nil {
+			return "", err
+		}
+		rowIdx := row - startRow
+		colIdx := col - startCol
+		if rowIdx < 0 || rowIdx >= len(matrix) {
+			return "", nil
+		}
+		if colIdx < 0 || colIdx >= len(matrix[rowIdx]) {
+			return "", nil
+		}
+		return matrix[rowIdx][colIdx], nil
+	}
 }
 
 func createHTMLTable(

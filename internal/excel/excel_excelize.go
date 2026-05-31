@@ -452,3 +452,72 @@ func (w *ExcelizeWorksheet) updateDimension(updatedCell string) error {
 	endRange, _ := excelize.CoordinatesToCellName(endCol, endRow)
 	return w.file.SetSheetDimension(w.sheetName, fmt.Sprintf("%s:%s", startRange, endRange))
 }
+
+func (w *ExcelizeWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
+	startCol, startRow, endCol, endRow, err := ParseRange(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	numRows := endRow - startRow + 1
+	numCols := endCol - startCol + 1
+	result := make([][]string, numRows)
+	for r := 0; r < numRows; r++ {
+		result[r] = make([]string, numCols)
+		for c := 0; c < numCols; c++ {
+			cell, _ := excelize.CoordinatesToCellName(startCol+c, startRow+r)
+			val, err := w.GetValue(cell)
+			if err != nil {
+				return nil, err
+			}
+			result[r][c] = val
+		}
+	}
+	return result, nil
+}
+
+func (w *ExcelizeWorksheet) GetFormulasRange(rangeRef string) ([][]string, error) {
+	startCol, startRow, endCol, endRow, err := ParseRange(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	numRows := endRow - startRow + 1
+	numCols := endCol - startCol + 1
+	result := make([][]string, numRows)
+	for r := 0; r < numRows; r++ {
+		result[r] = make([]string, numCols)
+		for c := 0; c < numCols; c++ {
+			cell, _ := excelize.CoordinatesToCellName(startCol+c, startRow+r)
+			val, err := w.GetFormula(cell)
+			if err != nil {
+				return nil, err
+			}
+			result[r][c] = val
+		}
+	}
+	return result, nil
+}
+
+func (w *ExcelizeWorksheet) SetValuesRange(rangeRef string, values [][]any) error {
+	startCol, startRow, _, _, err := ParseRange(rangeRef)
+	if err != nil {
+		return err
+	}
+	for rowIdx, row := range values {
+		for colIdx, val := range row {
+			cell, err := excelize.CoordinatesToCellName(startCol+colIdx, startRow+rowIdx)
+			if err != nil {
+				return err
+			}
+			if strVal, ok := val.(string); ok && strings.HasPrefix(strVal, "=") {
+				if err := w.SetFormula(cell, strVal); err != nil {
+					return err
+				}
+			} else {
+				if err := w.SetValue(cell, val); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}

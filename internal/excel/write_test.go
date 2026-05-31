@@ -41,20 +41,20 @@ func TestWriteSheetWritesValuesToExistingSheet(t *testing.T) {
 	}
 	defer sheet.Release()
 
-	topLeft, err := sheet.GetValue("A1")
+	topLeftVals, err := sheet.GetValuesRange("A1:A1")
 	if err != nil {
 		t.Fatalf("failed to get A1: %v", err)
 	}
-	if topLeft != "New1" {
-		t.Fatalf("expected New1, got %s", topLeft)
+	if topLeftVals[0][0] != "New1" {
+		t.Fatalf("expected New1, got %s", topLeftVals[0][0])
 	}
 
-	bottomRight, err := sheet.GetValue("C2")
+	bottomRightVals, err := sheet.GetValuesRange("C2:C2")
 	if err != nil {
 		t.Fatalf("failed to get C2: %v", err)
 	}
-	if bottomRight != "New6" {
-		t.Fatalf("expected New6, got %s", bottomRight)
+	if bottomRightVals[0][0] != "New6" {
+		t.Fatalf("expected New6, got %s", bottomRightVals[0][0])
 	}
 }
 
@@ -88,12 +88,12 @@ func TestWriteSheetOverwritesExistingCellValues(t *testing.T) {
 	}
 	defer sheet.Release()
 
-	val, err := sheet.GetValue("A1")
+	vals, err := sheet.GetValuesRange("A1:A1")
 	if err != nil {
 		t.Fatalf("failed to get A1: %v", err)
 	}
-	if val != "NewValue" {
-		t.Fatalf("expected NewValue, got %s", val)
+	if vals[0][0] != "NewValue" {
+		t.Fatalf("expected NewValue, got %s", vals[0][0])
 	}
 }
 
@@ -127,12 +127,12 @@ func TestWriteSheetStoresFormulaWhenValueStartsWithEquals(t *testing.T) {
 	}
 	defer sheet.Release()
 
-	formula, err := sheet.GetFormula("A1")
+	formulas, err := sheet.GetFormulasRange("A1:A1")
 	if err != nil {
 		t.Fatalf("failed to get formula A1: %v", err)
 	}
-	if formula != "=SUM(1,2)" {
-		t.Fatalf("expected formula =SUM(1,2), got %s", formula)
+	if formulas[0][0] != "=SUM(1,2)" {
+		t.Fatalf("expected formula =SUM(1,2), got %s", formulas[0][0])
 	}
 }
 

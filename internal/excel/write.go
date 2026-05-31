@@ -2,9 +2,6 @@ package excel
 
 import (
 	"fmt"
-	"strings"
-
-	"github.com/xuri/excelize/v2"
 )
 
 func WriteSheet(workbook Excel, sheetName, rangeStr string, values [][]any, newSheet bool) error {
@@ -41,24 +38,8 @@ func WriteSheet(workbook Excel, sheetName, rangeStr string, values [][]any, newS
 	}
 	defer worksheet.Release()
 
-	for rowIdx, row := range values {
-		for colIdx, val := range row {
-			cellCol := startCol + colIdx
-			cellRow := startRow + rowIdx
-			cellName, err := excelize.CoordinatesToCellName(cellCol, cellRow)
-			if err != nil {
-				return fmt.Errorf("failed to compute cell name: %w", err)
-			}
-			if strVal, ok := val.(string); ok && strings.HasPrefix(strVal, "=") {
-				if err := worksheet.SetFormula(cellName, strVal); err != nil {
-					return fmt.Errorf("failed to set formula at %s: %w", cellName, err)
-				}
-			} else {
-				if err := worksheet.SetValue(cellName, val); err != nil {
-					return fmt.Errorf("failed to set value at %s: %w", cellName, err)
-				}
-			}
-		}
+	if err := worksheet.SetValuesRange(rangeStr, values); err != nil {
+		return fmt.Errorf("failed to write values: %w", err)
 	}
 
 	return workbook.Save()

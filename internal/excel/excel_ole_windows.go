@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"unsafe"
 
 	"github.com/go-ole/go-ole"
 	"github.com/go-ole/go-ole/oleutil"
@@ -232,40 +233,6 @@ func (o *OleWorksheet) GetPivotTables() ([]PivotTable, error) {
 		}
 	}
 	return list, nil
-}
-
-func (o *OleWorksheet) SetValue(cell string, value any) error {
-	r := oleutil.MustGetProperty(o.worksheet, "Range", cell).ToIDispatch()
-	defer r.Release()
-	_, err := oleutil.PutProperty(r, "Value", value)
-	return err
-}
-
-func (o *OleWorksheet) SetFormula(cell string, formula string) error {
-	r := oleutil.MustGetProperty(o.worksheet, "Range", cell).ToIDispatch()
-	defer r.Release()
-	_, err := oleutil.PutProperty(r, "Formula", formula)
-	return err
-}
-
-func (o *OleWorksheet) GetValue(cell string) (string, error) {
-	r := oleutil.MustGetProperty(o.worksheet, "Range", cell).ToIDispatch()
-	defer r.Release()
-	value := oleutil.MustGetProperty(r, "Text").Value()
-	switch v := value.(type) {
-	case string:
-		return v, nil
-	case nil:
-		return "", nil
-	default:
-		return "", fmt.Errorf("unsupported type: %T", v)
-	}
-}
-
-func (o *OleWorksheet) GetFormula(cell string) (string, error) {
-	r := oleutil.MustGetProperty(o.worksheet, "Range", cell).ToIDispatch()
-	defer r.Release()
-	return oleutil.MustGetProperty(r, "Formula").ToString(), nil
 }
 
 func (o *OleWorksheet) GetDimention() (string, error) {
@@ -692,4 +659,122 @@ func normalizePath(path string) string {
 		return path
 	}
 	return filepath.Clean(strings.ToUpper(vol) + path[len(vol):])
+}
+
+// readRangeAs2DStrings fetches a Range property (e.g. "Formula" or "Value2") and
+// returns all cell values as a 2D row-major slice of strings.
+//
+// When the range is a single cell, Excel returns a scalar VARIANT instead of an array.
+// That case is detected by the absence of the VT_ARRAY flag and handled as a 1×1 result.
+//
+// For multi-cell ranges, Excel returns a VT_ARRAY|VT_VARIANT SafeArray where
+// dimension 1 is rows and dimension 2 is columns (both 1-based lower bounds).
+func (o *OleWorksheet) readRangeAs2DStrings(rangeRef, property string, converter func(*ole.VARIANT) string) ([][]string, error) {
+	rng := oleutil.MustGetProperty(o.worksheet, "Range", rangeRef).ToIDispatch()
+	defer rng.Release()
+
+	v, err := oleutil.GetProperty(rng, property)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s for range %s: %w", property, rangeRef, err)
+	}
+	defer v.Clear()
+
+	// Single-cell ranges and scalar properties return a plain VARIANT (no array flag).
+	if v.VT&ole.VT_ARRAY == 0 {
+		s := converter(v)
+		return [][]string{{s}}, nil
+	}
+
+	sa := v.ToArray()
+
+	lb1, err := safeArrayGetLB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim1: %w", err)
+	}
+	ub1, err := safeArrayGetUB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim1: %w", err)
+	}
+	lb2, err := safeArrayGetLB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim2: %w", err)
+	}
+	ub2, err := safeArrayGetUB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim2: %w", err)
+	}
+
+	nRows := int(ub1 - lb1 + 1)
+	nCols := int(ub2 - lb2 + 1)
+
+	result := make([][]string, nRows)
+	for i := range result {
+		result[i] = make([]string, nCols)
+		for j := range result[i] {
+			elem, err := safeArray2DGetVariant(sa.Array, lb1+int32(i), lb2+int32(j))
+			if err != nil {
+				result[i][j] = ""
+				continue
+			}
+			result[i][j] = converter(&elem)
+			elem.Clear()
+		}
+	}
+	return result, nil
+}
+
+// GetValuesRange reads all cell values in rangeRef using Range.Value2 (bulk COM call).
+// String and boolean values are returned exactly. Numeric values are rendered as their
+// shortest exact decimal representation (no locale-specific number formatting is applied).
+func (o *OleWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
+	return o.readRangeAs2DStrings(rangeRef, "Value2", variantToValueString)
+}
+
+// GetFormulasRange reads all cell formulas in rangeRef using Range.Formula (bulk COM call).
+// Formula cells return the formula string (e.g. "=SUM(A1:A10)").
+// Non-formula cells return the cell's value as a string.
+func (o *OleWorksheet) GetFormulasRange(rangeRef string) ([][]string, error) {
+	return o.readRangeAs2DStrings(rangeRef, "Formula", variantToFormulaString)
+}
+
+// SetValuesRange writes all values in a single bulk COM call via a 2D VT_VARIANT SafeArray.
+// Range.Formula is always used: strings beginning with "=" are evaluated as formulas,
+// while all other values are treated as literals by Excel.
+func (o *OleWorksheet) SetValuesRange(rangeRef string, values [][]any) error {
+	if len(values) == 0 {
+		return nil
+	}
+	numRows := len(values)
+	numCols := len(values[0])
+	if numCols == 0 {
+		return nil
+	}
+
+	sa, err := safeArrayCreate2DVariant(numRows, numCols)
+	if err != nil {
+		return fmt.Errorf("failed to create SafeArray: %w", err)
+	}
+
+	for rowIdx, row := range values {
+		for colIdx, val := range row {
+			elem := valueToVariant(val)
+			putErr := safeArray2DPutVariant(sa, int32(rowIdx+1), int32(colIdx+1), &elem)
+			elem.Clear()
+			if putErr != nil {
+				return fmt.Errorf("failed to set element [%d][%d]: %w", rowIdx, colIdx, putErr)
+			}
+		}
+	}
+
+	rng := oleutil.MustGetProperty(o.worksheet, "Range", rangeRef).ToIDispatch()
+	defer rng.Release()
+
+	// Wrap SafeArray in a VARIANT. Passing *ole.VARIANT to oleutil.PutProperty
+	// results in a VT_BYREF|VT_VARIANT wrapper, which Excel dereferences correctly.
+	arrayVariant := ole.NewVariant(ole.VT_ARRAY|ole.VT_VARIANT, int64(uintptr(unsafe.Pointer(sa))))
+	_, err = oleutil.PutProperty(rng, "Formula", &arrayVariant)
+	if err != nil {
+		return fmt.Errorf("failed to set range formula: %w", err)
+	}
+	return nil
 }

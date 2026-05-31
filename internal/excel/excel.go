@@ -21,16 +21,15 @@ type Worksheet interface {
 	Name() (string, error)
 	GetTables() ([]Table, error)
 	GetPivotTables() ([]PivotTable, error)
-	SetValue(cell string, value any) error
-	SetFormula(cell string, formula string) error
-	GetValue(cell string) (string, error)
-	GetFormula(cell string) (string, error)
 	GetDimention() (string, error)
 	CapturePicture(captureRange string) (string, error)
 	AddTable(tableRange, tableName string) error
 	GetCellStyle(cell string) (*CellStyle, error)
 	SetCellStyle(cell string, style *CellStyle) error
 	GetMergedCells() ([]MergedCell, error)
+	GetValuesRange(rangeRef string) ([][]string, error)
+	GetFormulasRange(rangeRef string) ([][]string, error)
+	SetValuesRange(rangeRef string, values [][]any) error
 }
 
 // MergedCell represents a merged cell region in a worksheet.
@@ -123,7 +122,7 @@ const (
 	BorderTypeDiagonalUp   BorderType = "diagonalUp"
 )
 
-func (b BorderType) String() string        { return string(b) }
+func (b BorderType) String() string               { return string(b) }
 func (b BorderType) MarshalText() ([]byte, error) { return []byte(b.String()), nil }
 func BorderTypeValues() []BorderType {
 	return []BorderType{BorderTypeLeft, BorderTypeRight, BorderTypeTop, BorderTypeBottom, BorderTypeDiagonalDown, BorderTypeDiagonalUp}
@@ -144,7 +143,7 @@ const (
 	BorderStyleMediumDashDotDot BorderStyle = "mediumDashDotDot"
 )
 
-func (b BorderStyle) String() string        { return string(b) }
+func (b BorderStyle) String() string               { return string(b) }
 func (b BorderStyle) MarshalText() ([]byte, error) { return []byte(b.String()), nil }
 func BorderStyleValues() []BorderStyle {
 	return []BorderStyle{BorderStyleNone, BorderStyleContinuous, BorderStyleDash, BorderStyleDot, BorderStyleDouble, BorderStyleDashDot, BorderStyleDashDotDot, BorderStyleSlantDashDot, BorderStyleMediumDashDot, BorderStyleMediumDashDotDot}
@@ -160,7 +159,7 @@ const (
 	FontUnderlineDoubleAccounting FontUnderline = "doubleAccounting"
 )
 
-func (f FontUnderline) String() string        { return string(f) }
+func (f FontUnderline) String() string               { return string(f) }
 func (f FontUnderline) MarshalText() ([]byte, error) { return []byte(f.String()), nil }
 func FontUnderlineValues() []FontUnderline {
 	return []FontUnderline{FontUnderlineNone, FontUnderlineSingle, FontUnderlineDouble, FontUnderlineSingleAccounting, FontUnderlineDoubleAccounting}
@@ -174,7 +173,7 @@ const (
 	FontVertAlignSubscript   FontVertAlign = "subscript"
 )
 
-func (v FontVertAlign) String() string        { return string(v) }
+func (v FontVertAlign) String() string               { return string(v) }
 func (v FontVertAlign) MarshalText() ([]byte, error) { return []byte(v.String()), nil }
 func FontVertAlignValues() []FontVertAlign {
 	return []FontVertAlign{FontVertAlignBaseline, FontVertAlignSuperscript, FontVertAlignSubscript}
@@ -187,9 +186,9 @@ const (
 	FillTypePattern  FillType = "pattern"
 )
 
-func (f FillType) String() string        { return string(f) }
+func (f FillType) String() string               { return string(f) }
 func (f FillType) MarshalText() ([]byte, error) { return []byte(f.String()), nil }
-func FillTypeValues() []FillType { return []FillType{FillTypeGradient, FillTypePattern} }
+func FillTypeValues() []FillType                { return []FillType{FillTypeGradient, FillTypePattern} }
 
 type FillPattern string
 
@@ -215,7 +214,7 @@ const (
 	FillPatternGray0625        FillPattern = "gray0625"
 )
 
-func (f FillPattern) String() string        { return string(f) }
+func (f FillPattern) String() string               { return string(f) }
 func (f FillPattern) MarshalText() ([]byte, error) { return []byte(f.String()), nil }
 func FillPatternValues() []FillPattern {
 	return []FillPattern{FillPatternNone, FillPatternSolid, FillPatternMediumGray, FillPatternDarkGray, FillPatternLightGray, FillPatternDarkHorizontal, FillPatternDarkVertical, FillPatternDarkDown, FillPatternDarkUp, FillPatternDarkGrid, FillPatternDarkTrellis, FillPatternLightHorizontal, FillPatternLightVertical, FillPatternLightDown, FillPatternLightUp, FillPatternLightGrid, FillPatternLightTrellis, FillPatternGray125, FillPatternGray0625}
@@ -232,7 +231,7 @@ const (
 	FillShadingFromCorner   FillShading = "fromCorner"
 )
 
-func (f FillShading) String() string        { return string(f) }
+func (f FillShading) String() string               { return string(f) }
 func (f FillShading) MarshalText() ([]byte, error) { return []byte(f.String()), nil }
 func FillShadingValues() []FillShading {
 	return []FillShading{FillShadingHorizontal, FillShadingVertical, FillShadingDiagonalDown, FillShadingDiagonalUp, FillShadingFromCenter, FillShadingFromCorner}

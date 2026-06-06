@@ -179,6 +179,38 @@ func TestCLIFormatEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("format fails for invalid color value", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createFormatCLIWorkbookFixture(t, workDir)
+
+		result := runCLICommand(t, binaryPath, workDir, "format", workbookPath, "Data", "A1:A1", `[[{"font":{"color":"red"}}]]`)
+
+		if result.exitCode == 0 {
+			t.Fatalf("expected non-zero exit code for invalid color, stdout=%s", result.stdout)
+		}
+		if !strings.Contains(result.stderr, "font.color") {
+			t.Fatalf("expected font.color validation error in stderr, got: %s", result.stderr)
+		}
+	})
+
+	t.Run("format fails for invalid enum value", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createFormatCLIWorkbookFixture(t, workDir)
+
+		result := runCLICommand(t, binaryPath, workDir, "format", workbookPath, "Data", "A1:A1", `[[{"font":{"underline":"triple"}}]]`)
+
+		if result.exitCode == 0 {
+			t.Fatalf("expected non-zero exit code for invalid enum, stdout=%s", result.stdout)
+		}
+		if !strings.Contains(result.stderr, "font.underline") {
+			t.Fatalf("expected font.underline validation error in stderr, got: %s", result.stderr)
+		}
+	})
+
 	t.Run("format fails when range contains sheet name", func(t *testing.T) {
 		t.Parallel()
 

@@ -117,6 +117,10 @@ func safeArrayGetUB(sa *ole.SafeArray, dim uint32) (int32, error) {
 // For formula cells the result is the formula string (e.g. "=SUM(A1:A10)").
 // For non-formula cells, numeric values are rendered as decimals.
 func variantToFormulaString(v *ole.VARIANT) string {
+	return stringifyCellValue(variantToFormulaAny(v))
+}
+
+func variantToFormulaAny(v *ole.VARIANT) any {
 	switch v.VT {
 	case ole.VT_BSTR:
 		return v.ToString()
@@ -127,21 +131,28 @@ func variantToFormulaString(v *ole.VARIANT) string {
 		goVal := v.Value()
 		switch val := goVal.(type) {
 		case float64:
-			return float64ToString(val)
+			if val == math.Trunc(val) {
+				return int64(val)
+			}
+			return val
 		case float32:
-			return float64ToString(float64(val))
+			f64 := float64(val)
+			if f64 == math.Trunc(f64) {
+				return int64(f64)
+			}
+			return f64
 		case int8:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int16:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int32:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int64:
-			return strconv.FormatInt(val, 10)
+			return val
 		case nil:
 			return ""
 		default:
-			return fmt.Sprintf("%v", goVal)
+			return goVal
 		}
 	}
 }
@@ -150,14 +161,18 @@ func variantToFormulaString(v *ole.VARIANT) string {
 // Strings and booleans are converted to their natural representation.
 // Numeric values are rendered as shortest exact decimal. Errors use Excel error notation.
 func variantToValueString(v *ole.VARIANT) string {
+	return stringifyCellValue(variantToValueAny(v))
+}
+
+func variantToValueAny(v *ole.VARIANT) any {
 	switch v.VT {
 	case ole.VT_BSTR:
 		return v.ToString()
 	case ole.VT_BOOL:
 		if (v.Val & 0xffff) != 0 {
-			return "TRUE"
+			return true
 		}
-		return "FALSE"
+		return false
 	case ole.VT_EMPTY, ole.VT_NULL:
 		return ""
 	case ole.VT_ERROR:
@@ -166,29 +181,36 @@ func variantToValueString(v *ole.VARIANT) string {
 		goVal := v.Value()
 		switch val := goVal.(type) {
 		case float64:
-			return float64ToString(val)
+			if val == math.Trunc(val) {
+				return int64(val)
+			}
+			return val
 		case float32:
-			return float64ToString(float64(val))
+			f64 := float64(val)
+			if f64 == math.Trunc(f64) {
+				return int64(f64)
+			}
+			return f64
 		case int8:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int16:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int32:
-			return strconv.FormatInt(int64(val), 10)
+			return int64(val)
 		case int64:
-			return strconv.FormatInt(val, 10)
+			return val
 		case uint8:
-			return strconv.FormatUint(uint64(val), 10)
+			return uint64(val)
 		case uint16:
-			return strconv.FormatUint(uint64(val), 10)
+			return uint64(val)
 		case uint32:
-			return strconv.FormatUint(uint64(val), 10)
+			return uint64(val)
 		case uint64:
-			return strconv.FormatUint(val, 10)
+			return val
 		case nil:
 			return ""
 		default:
-			return fmt.Sprintf("%v", goVal)
+			return goVal
 		}
 	}
 }

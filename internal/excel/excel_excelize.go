@@ -38,6 +38,13 @@ func (e *ExcelizeExcel) CreateNewSheet(sheetName string) error {
 	return nil
 }
 
+func (e *ExcelizeExcel) DeleteSheet(sheetName string) error {
+	if err := e.file.DeleteSheet(sheetName); err != nil {
+		return fmt.Errorf("failed to delete sheet: %w", err)
+	}
+	return nil
+}
+
 func (e *ExcelizeExcel) CopySheet(srcSheetName string, destSheetName string) error {
 	srcIndex, err := e.file.GetSheetIndex(srcSheetName)
 	if srcIndex < 0 {
@@ -89,6 +96,21 @@ type ExcelizeWorksheet struct {
 func (w *ExcelizeWorksheet) Release() {}
 
 func (w *ExcelizeWorksheet) Name() (string, error) { return w.sheetName, nil }
+
+func (w *ExcelizeWorksheet) IsHidden() (bool, error) {
+	visible, err := w.file.GetSheetVisible(w.sheetName)
+	if err != nil {
+		return false, fmt.Errorf("failed to get sheet visibility: %w", err)
+	}
+	return !visible, nil
+}
+
+func (w *ExcelizeWorksheet) SetHidden(hidden bool) error {
+	if err := w.file.SetSheetVisible(w.sheetName, !hidden); err != nil {
+		return fmt.Errorf("failed to set sheet visibility: %w", err)
+	}
+	return nil
+}
 
 func (w *ExcelizeWorksheet) GetTables() ([]Table, error) {
 	tables, err := w.file.GetTables(w.sheetName)
@@ -454,18 +476,26 @@ func (w *ExcelizeWorksheet) updateDimension(updatedCell string) error {
 }
 
 func (w *ExcelizeWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
+	values, err := w.GetValuesRangeAny(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	return anyMatrixToStringMatrix(values), nil
+}
+
+func (w *ExcelizeWorksheet) GetValuesRangeAny(rangeRef string) ([][]any, error) {
 	startCol, startRow, endCol, endRow, err := ParseRange(rangeRef)
 	if err != nil {
 		return nil, err
 	}
 	numRows := endRow - startRow + 1
 	numCols := endCol - startCol + 1
-	result := make([][]string, numRows)
+	result := make([][]any, numRows)
 	for r := 0; r < numRows; r++ {
-		result[r] = make([]string, numCols)
+		result[r] = make([]any, numCols)
 		for c := 0; c < numCols; c++ {
 			cell, _ := excelize.CoordinatesToCellName(startCol+c, startRow+r)
-			val, err := w.GetValue(cell)
+			val, err := w.getValueAny(cell)
 			if err != nil {
 				return nil, err
 			}
@@ -476,18 +506,26 @@ func (w *ExcelizeWorksheet) GetValuesRange(rangeRef string) ([][]string, error) 
 }
 
 func (w *ExcelizeWorksheet) GetFormulasRange(rangeRef string) ([][]string, error) {
+	values, err := w.GetFormulasRangeAny(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	return anyMatrixToStringMatrix(values), nil
+}
+
+func (w *ExcelizeWorksheet) GetFormulasRangeAny(rangeRef string) ([][]any, error) {
 	startCol, startRow, endCol, endRow, err := ParseRange(rangeRef)
 	if err != nil {
 		return nil, err
 	}
 	numRows := endRow - startRow + 1
 	numCols := endCol - startCol + 1
-	result := make([][]string, numRows)
+	result := make([][]any, numRows)
 	for r := 0; r < numRows; r++ {
-		result[r] = make([]string, numCols)
+		result[r] = make([]any, numCols)
 		for c := 0; c < numCols; c++ {
 			cell, _ := excelize.CoordinatesToCellName(startCol+c, startRow+r)
-			val, err := w.GetFormula(cell)
+			val, err := w.getFormulaAny(cell)
 			if err != nil {
 				return nil, err
 			}
@@ -508,16 +546,78 @@ func (w *ExcelizeWorksheet) SetValuesRange(rangeRef string, values [][]any) erro
 			if err != nil {
 				return err
 			}
-			if strVal, ok := val.(string); ok && strings.HasPrefix(strVal, "=") {
-				if err := w.SetFormula(cell, strVal); err != nil {
-					return err
-				}
-			} else {
-				if err := w.SetValue(cell, val); err != nil {
-					return err
-				}
+			if err := w.SetValue(cell, val); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
+}
+
+func (w *ExcelizeWorksheet) SetFormulasRange(rangeRef string, values [][]any) error {
+	startCol, startRow, _, _, err := ParseRange(rangeRef)
+	if err != nil {
+		return err
+	}
+	for rowIdx, row := range values {
+		for colIdx, val := range row {
+			cell, err := excelize.CoordinatesToCellName(startCol+colIdx, startRow+rowIdx)
+			if err != nil {
+				return err
+			}
+			if strVal, ok := val.(string); ok && strings.HasPrefix(strVal, "=") {
+				if err := w.SetFormula(cell, strVal); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := w.SetValue(cell, val); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (w *ExcelizeWorksheet) getValueAny(cell string) (any, error) {
+	rawValue, err := w.file.GetCellValue(w.sheetName, cell, excelize.Options{RawCellValue: true})
+	if err != nil {
+		return nil, err
+	}
+	cellType, err := w.file.GetCellType(w.sheetName, cell)
+	if err != nil {
+		return nil, err
+	}
+	return coerceExcelizeCellValue(rawValue, cellType), nil
+}
+
+func (w *ExcelizeWorksheet) getFormulaAny(cell string) (any, error) {
+	formula, err := w.file.GetCellFormula(w.sheetName, cell)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get formula: %w", err)
+	}
+	if formula != "" {
+		if !strings.HasPrefix(formula, "=") {
+			formula = "=" + formula
+		}
+		return formula, nil
+	}
+	return w.getValueAny(cell)
+}
+
+func coerceExcelizeCellValue(rawValue string, cellType excelize.CellType) any {
+	if rawValue == "" {
+		return ""
+	}
+	switch cellType {
+	case excelize.CellTypeBool:
+		return rawValue == "1" || strings.EqualFold(rawValue, "true")
+	case excelize.CellTypeNumber, excelize.CellTypeDate, excelize.CellTypeUnset:
+		if number, ok := parseNumericString(rawValue); ok {
+			return number
+		}
+		return rawValue
+	default:
+		return rawValue
+	}
 }

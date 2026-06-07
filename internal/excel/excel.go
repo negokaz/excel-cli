@@ -1,17 +1,13 @@
 package excel
 
-import (
-	"fmt"
-	"os"
-
-	"github.com/xuri/excelize/v2"
-)
+import "github.com/xuri/excelize/v2"
 
 type Excel interface {
 	GetBackendName() string
 	GetSheets() ([]Worksheet, error)
 	FindSheet(sheetName string) (Worksheet, error)
 	CreateNewSheet(sheetName string) error
+	DeleteSheet(sheetName string) error
 	CopySheet(srcSheetName, destSheetName string) error
 	Save() error
 }
@@ -19,6 +15,8 @@ type Excel interface {
 type Worksheet interface {
 	Release()
 	Name() (string, error)
+	IsHidden() (bool, error)
+	SetHidden(hidden bool) error
 	GetTables() ([]Table, error)
 	GetPivotTables() ([]PivotTable, error)
 	GetDimention() (string, error)
@@ -27,9 +25,12 @@ type Worksheet interface {
 	GetCellStyle(cell string) (*CellStyle, error)
 	SetCellStyle(cell string, style *CellStyle) error
 	GetMergedCells() ([]MergedCell, error)
+	GetValuesRangeAny(rangeRef string) ([][]any, error)
+	GetFormulasRangeAny(rangeRef string) ([][]any, error)
 	GetValuesRange(rangeRef string) ([][]string, error)
 	GetFormulasRange(rangeRef string) ([][]string, error)
 	SetValuesRange(rangeRef string, values [][]any) error
+	SetFormulasRange(rangeRef string, values [][]any) error
 }
 
 // MergedCell represents a merged cell region in a worksheet.
@@ -82,20 +83,9 @@ type FillStyle struct {
 	Shading *FillShading `yaml:"shading,omitempty" json:"shading,omitempty"`
 }
 
-// NewFile creates a new blank Excel workbook at the specified absolute path.
-// Returns an error if the file already exists.
-func NewFile(absoluteFilePath string) error {
-	if _, err := os.Stat(absoluteFilePath); err == nil {
-		return fmt.Errorf("file already exists: %s", absoluteFilePath)
-	}
-	file := excelize.NewFile()
-	defer file.Close()
-	return file.SaveAs(absoluteFilePath)
-}
-
 // OpenFile opens an Excel file and returns an Excel interface.
-// It first tries to open the file using OLE automation (Windows only),
-// and if that fails, it falls back to the excelize library.
+// On Windows, it first tries to attach through OLE when the workbook is
+// already open in Excel. Otherwise it falls back to the excelize library.
 func OpenFile(absoluteFilePath string) (Excel, func(), error) {
 	ole, releaseFn, err := NewExcelOle(absoluteFilePath)
 	if err == nil {
@@ -109,6 +99,11 @@ func OpenFile(absoluteFilePath string) (Excel, func(), error) {
 	return ex, func() {
 		workbook.Close()
 	}, nil
+}
+
+// OpenFileRequireOLE opens a workbook using OLE automation only.
+func OpenFileRequireOLE(absoluteFilePath string) (Excel, func(), error) {
+	return NewExcelOleOpen(absoluteFilePath)
 }
 
 type BorderType string

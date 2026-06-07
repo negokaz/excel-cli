@@ -3,51 +3,13 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/negokaz/excel-cli/internal/excel"
 )
 
 var excelStyleColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
-
-func runFormat(args []string) error {
-	if len(args) != 4 {
-		return fmt.Errorf("usage: excel-cli format <file> <sheet> <range> <styles>")
-	}
-
-	filePath := args[0]
-	sheetName := args[1]
-	rangeStr := args[2]
-	stylesJSON := args[3]
-
-	if strings.Contains(rangeStr, "!") {
-		return fmt.Errorf("invalid range %q: must not contain sheet name (e.g. 'Sheet1!A1:C3' is not allowed, use the <sheet> argument instead)", rangeStr)
-	}
-
-	styles, err := parseStylesJSON(stylesJSON)
-	if err != nil {
-		return err
-	}
-	if err := validateStyles(styles); err != nil {
-		return err
-	}
-
-	absPath, err := filepath.Abs(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to resolve path: %w", err)
-	}
-
-	workbook, release, err := excel.OpenFile(absPath)
-	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
-	}
-	defer release()
-
-	return excel.FormatRange(workbook, sheetName, rangeStr, styles)
-}
 
 func parseStylesJSON(raw string) ([][]*excel.CellStyle, error) {
 	var outer [][]json.RawMessage

@@ -1,158 +1,139 @@
 # excel-cli
 
-A CLI tool for reading and writing Excel files. Supports Windows, macOS, and Linux.
+`excel-cli` is a command-line tool for treating Excel workbooks, sheets, and ranges as structured resources.
 
-On Windows, it uses Excel via OLE automation when Excel is installed, providing accurate results for complex spreadsheets. On other platforms (or when Excel is unavailable), it falls back to the [excelize](https://github.com/xuri/excelize) library.
+## Features
+
+- Read workbook, sheet, or range data as JSON
+- Read formulas and styles in addition to values
+- Write values, formulas, styles, and sheet properties from JSON
+- Export HTML artifacts under `.excel-cli/` for broad inspection and visual layout checks
+
+**🪟Windows only:**
+
+- Live edits through OLE automation when Excel is available
+- Export PNG captures under `.excel-cli/` through OLE automation
 
 ## Installation
 
-Requires Node.js >= 20.
+Requires Node.js 20 or later.
 
 ```sh
 npm install -g @negokaz/excel-cli
 ```
 
-## Usage
+## Installing the Agent Skill
 
-```
-excel-cli new <file>
-excel-cli list <file>
-excel-cli read <file> <sheet> [options]
-excel-cli write <file> <sheet> <range> <values> [--newsheet]
-excel-cli format <file> <sheet> <range> <styles>
-excel-cli capture <file> <sheet> [range]
-```
+This repository also includes an agent skill at [`skills/excel-cli/`](./skills/excel-cli/).
 
-### `new` — Create a workbook
-
-Creates a new blank Excel workbook at the specified path. Prints the absolute path of the created file to stdout. Fails if the file already exists.
+You can install the skill with:
 
 ```sh
-excel-cli new book.xlsx
+gh skill preview negokaz/excel-cli excel-cli
 ```
 
-### `list` — List sheets
+## Command Summary
 
-Lists all sheets in an Excel file. Outputs JSON.
+```text
+excel-cli read <file> <path> [--value | --formula | --style]
+excel-cli query <file> <path>
+excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)
+excel-cli add <file> <path>
+excel-cli remove <file> <path> [--force]
+excel-cli export <file> <path> --format <html|png> [--formula] [--style]
+```
+
+## Paths
+
+Commands address workbook resources through a canonical `<file> <path>` pair.
+
+Supported initial paths:
+
+- `/`
+- `/Sheet1`
+- `/Sheet1/A1`
+- `/Sheet1/A1:C3`
+
+Path rules:
+
+- paths must begin with `/`
+- sheet names use canonical path segments: Unicode characters are preserved, while ASCII characters that require escaping remain percent-encoded
+- range output is canonicalized to uppercase cell references
+- Excel-style references such as `Sheet1!A1:C3` are rejected
+
+## Examples
+
+Enumerate sheets:
 
 ```sh
-excel-cli list book.xlsx
+excel-cli query book.xlsx /
 ```
 
 ```json
 {
-  "backend": "ole",
-  "sheets": [
-    { "name": "Sheet1", "usedRange": "A1:D10" },
-    { "name": "Sheet2", "usedRange": "A1:B3" }
+  "path": "/",
+  "kind": "sheetCollection",
+  "backend": "excelize",
+  "items": [
+    { "path": "/Data", "kind": "sheet", "name": "Data" },
+    { "path": "/Hidden%20Sheet", "kind": "sheet", "name": "Hidden Sheet" }
   ]
 }
 ```
 
-### `read` — Read a sheet
-
-Reads sheet content and saves it as an HTML file. Prints the absolute path of the output file to stdout.
+Read workbook, sheet, and range resources:
 
 ```sh
-excel-cli read book.xlsx Sheet1
+excel-cli read book.xlsx /
+excel-cli read book.xlsx /Data
+excel-cli read book.xlsx /Data/A1:C2 --formula
+excel-cli read book.xlsx /Data/A1:C2 --style
 ```
 
-The output is written to:
-```
-.excel-cli/sheet-<timestamp>.html
-```
-
-**Options:**
-
-| Option      | Description                            |
-|-------------|----------------------------------------|
-| `--formula` | Show formulas instead of cell values   |
-| `--style`   | Include cell style information         |
+Write values, formulas, styles, and sheet properties:
 
 ```sh
-# Show formulas with style information
-excel-cli read book.xlsx Sheet1 --formula --style
+excel-cli write book.xlsx /Data/A2:B2 --value '[["Alice",95]]'
+excel-cli write book.xlsx /Data/C2 --formula '[["=SUM(3,4)"]]'
+excel-cli write book.xlsx /Data/A1:B1 --style '[[{"font":{"bold":true}}, null]]'
+excel-cli write book.xlsx /Hidden%20Sheet --props '{"hidden":false}'
 ```
 
-### `write` — Write values to a sheet
-
-Writes values to a cell range. The `<values>` argument must be a JSON 2-dimensional array.
+Create and remove worksheets:
 
 ```sh
-excel-cli write book.xlsx Sheet1 A1:C2 '[["Name","Age","City"],["Alice",30,"Tokyo"]]'
+excel-cli add book.xlsx /Sales
+excel-cli remove book.xlsx /Sales
+excel-cli remove book.xlsx /Sales --force
 ```
 
-**Options:**
+`remove` is a dry-run by default. It validates that the sheet can be removed and returns JSON with `wouldRemove: true`. The workbook is only changed when `--force` is provided.
 
-| Option        | Description                                                           |
-|---------------|-----------------------------------------------------------------------|
-| `--newsheet`  | Create the sheet if it does not exist (error if it already exists)   |
+Export derived artifacts:
 
 ```sh
-# Write to a new sheet
-excel-cli write book.xlsx NewSheet A1 '[["Hello"]]' --newsheet
+excel-cli export book.xlsx /Data --format html --formula --style
+excel-cli export book.xlsx /Data/A1:C10 --format png
 ```
 
-### `format` — Apply styles to a cell range
+HTML and PNG files are created under `.excel-cli/`.
 
-Applies cell styles to a range in an Excel file. The `<styles>` argument must be a JSON 2-dimensional array matching the shape of `<range>`. Use `null` for cells you want to leave unchanged.
+## Notes
 
-```sh
-# Make B2 bold
-excel-cli format book.xlsx Sheet1 B2:B2 '[[{"font":{"bold":true}}]]'
+- `write --value`, `write --formula`, and `read --value`, `read --formula` are designed to round-trip through the same 2-dimensional JSON shape
+- `write --style` accepts a 2-dimensional array of style objects or `null`
+- `write --props` currently supports only worksheet `hidden`
+- `remove` fails if the target sheet does not exist or if it is the workbook's only worksheet
 
-# Fill A1:B1 with yellow background
-excel-cli format book.xlsx Sheet1 A1:B1 '[[ {"fill":{"type":"pattern","pattern":"solid","color":["#FFFF00"]}}, {"fill":{"type":"pattern","pattern":"solid","color":["#FFFF00"]}} ]]'
-
-# Apply italic to B1 only, leave A1 unchanged
-excel-cli format book.xlsx Sheet1 A1:B1 '[[null, {"font":{"italic":true}}]]'
-```
-
-Each style object supports the following properties:
-
-| Property        | Type            | Description                                    |
-|-----------------|-----------------|------------------------------------------------|
-| `font.bold`     | boolean         | Bold text                                      |
-| `font.italic`   | boolean         | Italic text                                    |
-| `font.underline`| string          | Underline style                                |
-| `font.strike`   | boolean         | Strikethrough                                  |
-| `font.size`     | number          | Font size (pt)                                 |
-| `font.color`    | string          | Font color (hex, e.g. `"#FF0000"`)             |
-| `fill.type`     | string          | Fill type (e.g. `"pattern"`)                   |
-| `fill.pattern`  | string          | Fill pattern (e.g. `"solid"`)                  |
-| `fill.color`    | string[]        | Fill color(s) (hex)                            |
-| `border`        | Border[]        | Border definitions (`type`, `style`, `color`)  |
-| `numFmt`        | string          | Number format string                           |
-| `decimalPlaces` | number          | Decimal places for numeric format              |
-
-### `capture` — Capture a screenshot of a sheet
-
-**[Windows only]** Takes a screenshot of the specified range in an Excel sheet and saves it as a PNG file. Prints the absolute path of the output file to stdout.
-
-```sh
-excel-cli capture book.xlsx Sheet1
-```
-
-The output is written to:
-```
-.excel-cli/capture-<timestamp>.png
-```
-
-You can also specify a range:
-
-```sh
-excel-cli capture book.xlsx Sheet1 A1:C10
-```
-
-If `range` is omitted, the entire used range of the sheet is captured.
+The design notes in [docs/](docs/index.md) are the primary reference for command contracts and migration intent.
 
 ## Supported Platforms
 
 | Platform | Architecture |
-|----------|-------------|
-| Windows  | x64, arm64  |
-| macOS    | x64, arm64  |
-| Linux    | x64, arm64  |
+|----------|--------------|
+| Windows  | x64, arm64   |
+| macOS    | x64, arm64   |
+| Linux    | x64, arm64   |
 
 ## License
 

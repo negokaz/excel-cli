@@ -164,7 +164,6 @@ func TestCreateHTMLTableOfValuesWithMergedCells(t *testing.T) {
 	}
 }
 
-
 func openHTMLTestWorksheet(t *testing.T, configure func(file *excelize.File)) excel.Worksheet {
 	t.Helper()
 

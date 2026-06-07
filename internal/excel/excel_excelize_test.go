@@ -53,11 +53,11 @@ func TestExcelizeWorkbookSupportsReadingAndWriting(t *testing.T) {
 		t.Fatalf("expected Data sheet, got %v", err)
 	}
 
-	values, err := worksheet.GetValuesRange("A1:A1")
+	values, err := worksheet.GetValuesRangeAny("A1:A1")
 	if err != nil {
 		t.Fatalf("expected values, got %v", err)
 	}
-	formulas, err := worksheet.GetFormulasRange("B1:B1")
+	formulas, err := worksheet.GetFormulasRangeAny("B1:B1")
 	if err != nil {
 		t.Fatalf("expected formulas, got %v", err)
 	}
@@ -76,13 +76,63 @@ func TestExcelizeWorkbookSupportsReadingAndWriting(t *testing.T) {
 	}
 
 	if values[0][0] != "plain" {
-		t.Fatalf("expected plain, got %s", values[0][0])
+		t.Fatalf("expected plain, got %#v", values[0][0])
 	}
 	if formulas[0][0] != "=SUM(1,2)" {
-		t.Fatalf("expected =SUM(1,2), got %s", formulas[0][0])
+		t.Fatalf("expected =SUM(1,2), got %#v", formulas[0][0])
 	}
 	if dimension != "A1:D4" {
 		t.Fatalf("expected A1:D4, got %s", dimension)
+	}
+}
+
+func TestExcelizeWorkbookSupportsSheetVisibilityAndDeletion(t *testing.T) {
+	t.Parallel()
+
+	workbookPath := createExcelizeTestWorkbook(t)
+	file, err := excelize.OpenFile(workbookPath)
+	if err != nil {
+		t.Fatalf("failed to open workbook: %v", err)
+	}
+	t.Cleanup(func() { _ = file.Close() })
+	workbook := &ExcelizeExcel{file: file}
+
+	worksheet, err := workbook.FindSheet("Extra")
+	if err != nil {
+		t.Fatalf("expected Extra sheet, got %v", err)
+	}
+	hidden, err := worksheet.IsHidden()
+	if err != nil {
+		t.Fatalf("expected visibility state, got %v", err)
+	}
+	if hidden {
+		t.Fatal("expected Extra to be visible initially")
+	}
+	if err := worksheet.SetHidden(true); err != nil {
+		t.Fatalf("expected SetHidden to succeed, got %v", err)
+	}
+	hidden, err = worksheet.IsHidden()
+	if err != nil {
+		t.Fatalf("expected visibility state after update, got %v", err)
+	}
+	if !hidden {
+		t.Fatal("expected Extra to be hidden after SetHidden")
+	}
+
+	if err := workbook.DeleteSheet("Extra"); err != nil {
+		t.Fatalf("expected DeleteSheet to succeed, got %v", err)
+	}
+	if err := workbook.Save(); err != nil {
+		t.Fatalf("expected Save to succeed, got %v", err)
+	}
+
+	reopened, err := excelize.OpenFile(workbookPath)
+	if err != nil {
+		t.Fatalf("failed to reopen workbook: %v", err)
+	}
+	defer reopened.Close()
+	if idx, err := reopened.GetSheetIndex("Extra"); err != nil || idx != -1 {
+		t.Fatalf("expected Extra to be deleted, idx=%d err=%v", idx, err)
 	}
 }
 

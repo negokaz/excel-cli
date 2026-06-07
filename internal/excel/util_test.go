@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/xuri/excelize/v2"
 )
 
 func TestParseRangeParsesSingleCell(t *testing.T) {
@@ -59,83 +57,6 @@ func TestNormalizeRangeReturnsCanonicalRange(t *testing.T) {
 
 	if normalized != "A1:C3" {
 		t.Fatalf("expected A1:C3, got %s", normalized)
-	}
-}
-
-func TestIsEmptyWorksheetReturnsTrueForBlankSingleCellRange(t *testing.T) {
-	t.Parallel()
-
-	file := excelize.NewFile()
-	if err := file.SetSheetName("Sheet1", "Blank"); err != nil {
-		t.Fatalf("failed to rename sheet: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "blank.xlsx")
-	if err := file.SaveAs(path); err != nil {
-		t.Fatalf("failed to save workbook: %v", err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("failed to close workbook: %v", err)
-	}
-
-	workbook, release, err := OpenFile(path)
-	if err != nil {
-		t.Fatalf("failed to open workbook: %v", err)
-	}
-	defer release()
-
-	worksheet, err := workbook.FindSheet("Blank")
-	if err != nil {
-		t.Fatalf("failed to find sheet: %v", err)
-	}
-	defer worksheet.Release()
-
-	empty, err := IsEmptyWorksheet(worksheet, "A1")
-
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if !empty {
-		t.Fatal("expected blank single-cell range to be empty")
-	}
-}
-
-func TestIsEmptyWorksheetReturnsFalseForMultiCellRange(t *testing.T) {
-	t.Parallel()
-
-	file := excelize.NewFile()
-	if err := file.SetSheetName("Sheet1", "Data"); err != nil {
-		t.Fatalf("failed to rename sheet: %v", err)
-	}
-	if err := file.SetCellValue("Data", "B2", "value"); err != nil {
-		t.Fatalf("failed to set cell: %v", err)
-	}
-	path := filepath.Join(t.TempDir(), "data.xlsx")
-	if err := file.SaveAs(path); err != nil {
-		t.Fatalf("failed to save workbook: %v", err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatalf("failed to close workbook: %v", err)
-	}
-
-	workbook, release, err := OpenFile(path)
-	if err != nil {
-		t.Fatalf("failed to open workbook: %v", err)
-	}
-	defer release()
-
-	worksheet, err := workbook.FindSheet("Data")
-	if err != nil {
-		t.Fatalf("failed to find sheet: %v", err)
-	}
-	defer worksheet.Release()
-
-	empty, err := IsEmptyWorksheet(worksheet, "A1:B2")
-
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if empty {
-		t.Fatal("expected multi-cell used range to be non-empty")
 	}
 }
 

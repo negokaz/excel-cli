@@ -93,6 +93,69 @@ func NewExcelOle(absolutePath string) (Excel, func(), error) {
 	return nil, func() {}, fmt.Errorf("workbook not found: %s", absolutePath)
 }
 
+func NewExcelOleOpen(absolutePath string) (Excel, func(), error) {
+	runtime.LockOSThread()
+	ole.CoInitializeEx(0, ole.COINIT_APARTMENTTHREADED)
+
+	var unknown *ole.IUnknown
+	unknown, err := oleutil.GetActiveObject("Excel.Application")
+	createdApp := false
+	if err != nil {
+		unknown, err = oleutil.CreateObject("Excel.Application")
+		if err != nil {
+			ole.CoUninitialize()
+			runtime.UnlockOSThread()
+			return nil, func() {}, err
+		}
+		createdApp = true
+	}
+
+	excel, err := unknown.QueryInterface(ole.IID_IDispatch)
+	unknown.Release()
+	if err != nil {
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, func() {}, err
+	}
+
+	oleutil.MustPutProperty(excel, "ScreenUpdating", false)
+	oleutil.MustPutProperty(excel, "EnableEvents", false)
+	workbooks := oleutil.MustGetProperty(excel, "Workbooks").ToIDispatch()
+	workbookVar, err := oleutil.CallMethod(workbooks, "Open", absolutePath)
+	if err != nil {
+		workbooks.Release()
+		excel.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, func() {}, err
+	}
+	workbook := workbookVar.ToIDispatch()
+
+	oleExcel, err := newOleExcel(excel, workbook)
+	if err != nil {
+		workbook.Release()
+		workbooks.Release()
+		excel.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+		return nil, func() {}, err
+	}
+
+	return oleExcel, func() {
+		oleutil.MustPutProperty(excel, "EnableEvents", true)
+		oleutil.MustPutProperty(excel, "ScreenUpdating", true)
+		if createdApp {
+			_, _ = oleutil.CallMethod(workbook, "Close", false)
+			_, _ = oleutil.CallMethod(excel, "Quit")
+		}
+		workbook.Release()
+		workbooks.Release()
+		excel.Release()
+		ole.CoUninitialize()
+		runtime.UnlockOSThread()
+	}, nil
+}
+
 func newOleExcel(application, workbook *ole.IDispatch) (*OleExcel, error) {
 	normalStyleVar, err := oleutil.GetProperty(workbook, "Styles", "Normal")
 	if err != nil {
@@ -150,18 +213,31 @@ func (o *OleExcel) FindSheet(sheetName string) (Worksheet, error) {
 }
 
 func (o *OleExcel) CreateNewSheet(sheetName string) error {
-	activeWorksheet := oleutil.MustGetProperty(o.workbook, "ActiveSheet").ToIDispatch()
-	defer activeWorksheet.Release()
-	activeWorksheetIndex := oleutil.MustGetProperty(activeWorksheet, "Index").Val
 	worksheets := oleutil.MustGetProperty(o.workbook, "Worksheets").ToIDispatch()
 	defer worksheets.Release()
-	_, err := oleutil.CallMethod(worksheets, "Add", nil, activeWorksheet)
+	count := int(oleutil.MustGetProperty(worksheets, "Count").Val)
+	lastSheet := oleutil.MustGetProperty(worksheets, "Item", count).ToIDispatch()
+	defer lastSheet.Release()
+	_, err := oleutil.CallMethod(worksheets, "Add", nil, lastSheet)
 	if err != nil {
 		return err
 	}
-	ws := oleutil.MustGetProperty(worksheets, "Item", activeWorksheetIndex+1).ToIDispatch()
+	ws := oleutil.MustGetProperty(worksheets, "Item", count+1).ToIDispatch()
 	defer ws.Release()
 	_, err = oleutil.PutProperty(ws, "Name", sheetName)
+	return err
+}
+
+func (o *OleExcel) DeleteSheet(sheetName string) error {
+	worksheets := oleutil.MustGetProperty(o.workbook, "Worksheets").ToIDispatch()
+	defer worksheets.Release()
+	wsVariant, err := oleutil.GetProperty(worksheets, "Item", sheetName)
+	if err != nil {
+		return fmt.Errorf("failed to get sheet: %w", err)
+	}
+	ws := wsVariant.ToIDispatch()
+	defer ws.Release()
+	_, err = oleutil.CallMethod(ws, "Delete")
 	return err
 }
 
@@ -197,6 +273,20 @@ func (o *OleExcel) Save() error {
 func (o *OleWorksheet) Release() { o.worksheet.Release() }
 func (o *OleWorksheet) Name() (string, error) {
 	return oleutil.MustGetProperty(o.worksheet, "Name").ToString(), nil
+}
+
+func (o *OleWorksheet) IsHidden() (bool, error) {
+	visible := oleutil.MustGetProperty(o.worksheet, "Visible").Value().(int32)
+	return visible != -1, nil
+}
+
+func (o *OleWorksheet) SetHidden(hidden bool) error {
+	target := int32(-1)
+	if hidden {
+		target = 0
+	}
+	_, err := oleutil.PutProperty(o.worksheet, "Visible", target)
+	return err
 }
 
 func (o *OleWorksheet) GetTables() ([]Table, error) {
@@ -723,10 +813,74 @@ func (o *OleWorksheet) readRangeAs2DStrings(rangeRef, property string, converter
 	return result, nil
 }
 
+func (o *OleWorksheet) readRangeAs2DValues(rangeRef, property string, converter func(*ole.VARIANT) any) ([][]any, error) {
+	rng := oleutil.MustGetProperty(o.worksheet, "Range", rangeRef).ToIDispatch()
+	defer rng.Release()
+
+	v, err := oleutil.GetProperty(rng, property)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get %s for range %s: %w", property, rangeRef, err)
+	}
+	defer v.Clear()
+
+	if v.VT&ole.VT_ARRAY == 0 {
+		return [][]any{{converter(v)}}, nil
+	}
+
+	sa := v.ToArray()
+
+	lb1, err := safeArrayGetLB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim1: %w", err)
+	}
+	ub1, err := safeArrayGetUB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim1: %w", err)
+	}
+	lb2, err := safeArrayGetLB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim2: %w", err)
+	}
+	ub2, err := safeArrayGetUB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim2: %w", err)
+	}
+
+	nRows := int(ub1 - lb1 + 1)
+	nCols := int(ub2 - lb2 + 1)
+
+	result := make([][]any, nRows)
+	for i := range result {
+		result[i] = make([]any, nCols)
+		for j := range result[i] {
+			elem, err := safeArray2DGetVariant(sa.Array, lb1+int32(i), lb2+int32(j))
+			if err != nil {
+				result[i][j] = ""
+				continue
+			}
+			result[i][j] = converter(&elem)
+			elem.Clear()
+		}
+	}
+	return result, nil
+}
+
 // GetValuesRange reads all cell values in rangeRef using Range.Value2 (bulk COM call).
 // String and boolean values are returned exactly. Numeric values are rendered as their
 // shortest exact decimal representation (no locale-specific number formatting is applied).
 func (o *OleWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
+	values, err := o.GetValuesRangeAny(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	return anyMatrixToStringMatrix(values), nil
+}
+
+func (o *OleWorksheet) GetValuesRangeAny(rangeRef string) ([][]any, error) {
+	return o.readRangeAs2DValues(rangeRef, "Value2", variantToValueAny)
+}
+
+func (o *OleWorksheet) GetValuesRangeString(rangeRef string) ([][]string, error) {
 	return o.readRangeAs2DStrings(rangeRef, "Value2", variantToValueString)
 }
 
@@ -734,6 +888,18 @@ func (o *OleWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
 // Formula cells return the formula string (e.g. "=SUM(A1:A10)").
 // Non-formula cells return the cell's value as a string.
 func (o *OleWorksheet) GetFormulasRange(rangeRef string) ([][]string, error) {
+	values, err := o.GetFormulasRangeAny(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	return anyMatrixToStringMatrix(values), nil
+}
+
+func (o *OleWorksheet) GetFormulasRangeAny(rangeRef string) ([][]any, error) {
+	return o.readRangeAs2DValues(rangeRef, "Formula", variantToFormulaAny)
+}
+
+func (o *OleWorksheet) GetFormulasRangeString(rangeRef string) ([][]string, error) {
 	return o.readRangeAs2DStrings(rangeRef, "Formula", variantToFormulaString)
 }
 
@@ -741,6 +907,14 @@ func (o *OleWorksheet) GetFormulasRange(rangeRef string) ([][]string, error) {
 // Range.Formula is always used: strings beginning with "=" are evaluated as formulas,
 // while all other values are treated as literals by Excel.
 func (o *OleWorksheet) SetValuesRange(rangeRef string, values [][]any) error {
+	return o.setRangeWithProperty(rangeRef, values, "Value2")
+}
+
+func (o *OleWorksheet) SetFormulasRange(rangeRef string, values [][]any) error {
+	return o.setRangeWithProperty(rangeRef, values, "Formula")
+}
+
+func (o *OleWorksheet) setRangeWithProperty(rangeRef string, values [][]any, property string) error {
 	if len(values) == 0 {
 		return nil
 	}
@@ -772,9 +946,9 @@ func (o *OleWorksheet) SetValuesRange(rangeRef string, values [][]any) error {
 	// Wrap SafeArray in a VARIANT. Passing *ole.VARIANT to oleutil.PutProperty
 	// results in a VT_BYREF|VT_VARIANT wrapper, which Excel dereferences correctly.
 	arrayVariant := ole.NewVariant(ole.VT_ARRAY|ole.VT_VARIANT, int64(uintptr(unsafe.Pointer(sa))))
-	_, err = oleutil.PutProperty(rng, "Formula", &arrayVariant)
+	_, err = oleutil.PutProperty(rng, property, &arrayVariant)
 	if err != nil {
-		return fmt.Errorf("failed to set range formula: %w", err)
+		return fmt.Errorf("failed to set range %s: %w", strings.ToLower(property), err)
 	}
 	return nil
 }

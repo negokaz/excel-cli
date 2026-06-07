@@ -5,13 +5,14 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 
 	"github.com/xuri/excelize/v2"
 )
 
 // ParseRange parses an Excel range string (e.g. "A1:C10" or "A1").
 func ParseRange(rangeStr string) (int, int, int, int, error) {
-	re := regexp.MustCompile(`^(\$?[A-Z]+\$?\d+)(?::(\$?[A-Z]+\$?\d+))?$`)
+	re := regexp.MustCompile(`^(\$?[A-Za-z]+\$?\d+)(?::(\$?[A-Za-z]+\$?\d+))?$`)
 	matches := re.FindStringSubmatch(rangeStr)
 	if matches == nil {
 		return 0, 0, 0, 0, fmt.Errorf("invalid range format: %s", rangeStr)
@@ -37,37 +38,69 @@ func NormalizeRange(rangeStr string) string {
 	return fmt.Sprintf("%s:%s", startCell, endCell)
 }
 
-func IsEmptyWorksheet(worksheet Worksheet, usedRange string) (bool, error) {
-	if usedRange == "" {
-		return true, nil
+func anyMatrixToStringMatrix(values [][]any) [][]string {
+	result := make([][]string, len(values))
+	for rowIdx, row := range values {
+		result[rowIdx] = make([]string, len(row))
+		for colIdx, value := range row {
+			result[rowIdx][colIdx] = stringifyCellValue(value)
+		}
 	}
+	return result
+}
 
-	startCol, startRow, endCol, endRow, err := ParseRange(usedRange)
-	if err != nil {
-		return false, err
+func stringifyCellValue(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case bool:
+		if v {
+			return "TRUE"
+		}
+		return "FALSE"
+	case int:
+		return strconv.FormatInt(int64(v), 10)
+	case int8:
+		return strconv.FormatInt(int64(v), 10)
+	case int16:
+		return strconv.FormatInt(int64(v), 10)
+	case int32:
+		return strconv.FormatInt(int64(v), 10)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case uint:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint8:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint16:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint32:
+		return strconv.FormatUint(uint64(v), 10)
+	case uint64:
+		return strconv.FormatUint(v, 10)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 64)
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	default:
+		return fmt.Sprintf("%v", v)
 	}
-	if startCol != endCol || startRow != endRow {
-		return false, nil
-	}
+}
 
-	cell, err := excelize.CoordinatesToCellName(startCol, startRow)
+func parseNumericString(raw string) (any, bool) {
+	if raw == "" {
+		return "", false
+	}
+	f, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
-		return false, err
+		return nil, false
 	}
-
-	values, err := worksheet.GetValuesRange(cell + ":" + cell)
-	if err != nil {
-		return false, err
+	if float64(int64(f)) == f {
+		return int64(f), true
 	}
-	if values[0][0] != "" {
-		return false, nil
-	}
-
-	formulas, err := worksheet.GetFormulasRange(cell + ":" + cell)
-	if err != nil {
-		return false, err
-	}
-	return formulas[0][0] == "", nil
+	return f, true
 }
 
 func FileIsNotWritable(absolutePath string) bool {

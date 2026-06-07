@@ -12,15 +12,19 @@ They are maintained as [Foam notes](https://foamnotes.com), using standard Markd
 ## Contents
 
 - [[core-concept]]
-- [[list]]
+- [[implementation-plan]]
 - [[read]]
+- [[query]]
 - [[write]]
-- [[format]]
-- [[capture]]
+- [[add]]
+- [[remove]]
+- [[export]]
 
-[list]: commands/list "Behavior of the list Command"
 [read]: commands/read "Behavior of the read Command"
+[query]: commands/query "Behavior of the query Command"
 [write]: commands/write "Behavior of the write Command"
-[format]: commands/format "Behavior of the format Command"
-[capture]: commands/capture "Behavior of the capture Command"
+[add]: commands/add "Behavior of the add Command"
+[remove]: commands/remove "Behavior of the remove Command"
+[export]: commands/export "Behavior of the export Command"
 [core-concept]: core-concept "Core Concepts of excel-cli"
+[implementation-plan]: implementation-plan "Implementation Migration Plan"

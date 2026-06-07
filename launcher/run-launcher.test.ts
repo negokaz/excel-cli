@@ -11,7 +11,7 @@ type MockProcess = {
 function createMockProcess(overrides?: Partial<MockProcess>): MockProcess {
   return {
     arch: 'x64',
-    argv: ['node', 'dist/launcher.js', 'list', 'workbook.xlsx'],
+    argv: ['node', 'dist/launcher.js', 'query', 'workbook.xlsx', '/'],
     exit: jest.fn((code?: number) => {
       throw new Error(`process.exit:${code}`);
     }),
@@ -49,7 +49,7 @@ describe('executeLauncher', () => {
 
       expect(spawnSync).toHaveBeenCalledWith(
         expect.stringContaining('excel-cli_linux_amd64_v1'),
-        ['list', 'workbook.xlsx'],
+        ['query', 'workbook.xlsx', '/'],
         { stdio: 'inherit' },
       );
       expect(runtimeProcess.exit).not.toHaveBeenCalled();

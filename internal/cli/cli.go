@@ -8,34 +8,24 @@ import (
 const usage = `excel-cli - Excel file tool
 
 Usage:
-  excel-cli new <file>
-  excel-cli list <file>
-  excel-cli read <file> <sheet> [options]
-  excel-cli write <file> <sheet> <range> <values> [--newsheet]
-  excel-cli format <file> <sheet> <range> <styles>
-  excel-cli capture <file> <sheet> [range]
+  excel-cli read <file> <path> [--value | --formula | --style]
+  excel-cli query <file> <path>
+  excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)
+  excel-cli add <file> <path>
+  excel-cli remove <file> <path> [--force]
+  excel-cli export <file> <path> --format <html|png> [options]
 
 Commands:
-  new      Create a new Excel workbook
-  list     List all sheets in the Excel file
-  read     Read sheet content and save as HTML
-  write    Write values to a sheet in the Excel file
-  format   Apply cell styles to a range in the Excel file
-  capture  Capture a screenshot of the sheet and save as PNG [Windows only]
-
-Options for read:
-  --formula   Show formulas instead of values
-  --style     Include cell style information
-
-Options for write:
-  --newsheet  Create the sheet if it does not exist (error if it already exists)
+  read     Read workbook, sheet, or range data as JSON
+  query    Enumerate collection resources as JSON
+  write    Update workbook resources from JSON payloads
+  add      Create workbook resources
+  remove   Validate or delete workbook resources
+  export   Render HTML or PNG artifacts under .excel-cli/
 
 Output:
-  The read command writes the sheet content to:
-    .excel-cli/sheet-<timestamp>.html
-  The capture command writes the screenshot to:
-    .excel-cli/capture-<timestamp>.png
-  and prints the absolute path to stdout.`
+  read/query/write/add/remove return JSON on success.
+  export writes an artifact under .excel-cli/ and prints its absolute path.`
 
 func Run(args []string) error {
 	if len(args) == 0 {
@@ -43,18 +33,18 @@ func Run(args []string) error {
 		return nil
 	}
 	switch args[0] {
-	case "new":
-		return runNew(args[1:])
-	case "list":
-		return runList(args[1:])
 	case "read":
 		return runRead(args[1:])
+	case "query":
+		return runQuery(args[1:])
 	case "write":
 		return runWrite(args[1:])
-	case "format":
-		return runFormat(args[1:])
-	case "capture":
-		return runCapture(args[1:])
+	case "add":
+		return runAdd(args[1:])
+	case "remove":
+		return runRemove(args[1:])
+	case "export":
+		return runExport(args[1:])
 	case "help", "--help", "-h":
 		fmt.Fprintln(os.Stderr, usage)
 		return nil

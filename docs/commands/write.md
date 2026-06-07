@@ -7,81 +7,145 @@ tags:
 
 # write
 
-This note describes the behavior that callers can rely on when using `excel-cli write`. It focuses on the observable command contract rather than internal workbook handling.
+This note describes the behavior that callers can rely on when using `excel-cli write`. It defines update channels, input shapes, target restrictions, and failure conditions.
 
 ## Command Form
 
-`excel-cli write <file> <sheet> <range> <values> [--newsheet]`
+`excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)`
 
 - `<file>` is the workbook to update.
-- `<sheet>` is the target sheet name.
-- `<range>` is the target Excel range.
-- `<values>` is a JSON 2-dimensional array.
-- `--newsheet` creates the target sheet before writing.
+- `<path>` is the canonical target path inside the workbook.
+- `--value` writes normal values.
+- `--formula` writes formulas for strings that begin with `=` and normal values otherwise.
+- `--style` applies cell style updates.
+- `--props` updates supported properties of a non-range target.
 
-The command requires four positional arguments. It does not create a new workbook, so the workbook file must already exist.
+The command requires `<file>`, `<path>`, and exactly one update channel.
+
+The update channels are mutually exclusive.
+
+## Supported Targets
+
+Initial target support is:
+
+- `--value`: `/<sheet>/A1` or `/<sheet>/A1:C3`
+- `--formula`: `/<sheet>/A1` or `/<sheet>/A1:C3`
+- `--style`: `/<sheet>/A1` or `/<sheet>/A1:C3`
+- `--props`: `/<sheet>`
+
+`write` does not support workbook root updates in the initial version.
 
 ## Input Contract
 
-### Range
+### Path
 
-The range is expressed separately from the sheet name. Inputs such as `Sheet1!A1:C3` are rejected. Valid inputs are standard Excel-style cell references and rectangular ranges such as `A1`, `A1:C2`, or `$A$1:$C$2`.
+`<path>` must use canonical path syntax.
 
-### Values
+- the path must begin with `/`
+- sheet names use canonical path segments: Unicode characters are preserved, while ASCII characters that require escaping remain percent-encoded
+- range targets are single cells or rectangular ranges only
 
-`<values>` must be a JSON 2-dimensional array.
+### `--value`
+
+`--value` accepts a JSON 2-dimensional array.
 
 - the outer array represents rows
 - each inner array represents cells in that row
 - the shape must match the target range exactly
-- a one-dimensional JSON array is rejected
-- rows with the wrong column count are rejected
+- a single cell still requires a 2-dimensional array such as `[[123]]`
 
-Strings that begin with `=` are treated as formulas rather than plain text values.
+### `--formula`
 
-## Sheet Creation and Selection
+`--formula` accepts a JSON 2-dimensional array.
 
-Without `--newsheet`, the target sheet must already exist.
+- the outer array represents rows
+- each inner array represents cells in that row
+- the shape must match the target range exactly
+- if a string value begins with `=`, it is written as a formula
+- otherwise, the item is written as a normal value
 
-With `--newsheet`, `write` creates the target sheet and then writes the provided values. This mode is exclusive with existing sheets: if the sheet already exists, the command fails instead of reusing it.
+This channel is intended to round-trip with `read --formula`.
+
+### `--style`
+
+`--style` accepts a JSON 2-dimensional array.
+
+- the outer array represents rows
+- each inner array represents cells in that row
+- the shape must match the target range exactly
+- each item must be either a style object or `null`
+- `null` means that cell is left unchanged
+
+Each style object may contain:
+
+- `border`
+- `font`
+- `fill`
+- `numFmt`
+- `decimalPlaces`
+
+Style enum values and validation rules are the same ones defined by the tool's style schema.
+
+### `--props`
+
+`--props` accepts a JSON object.
+
+In the initial version, supported target properties are limited to worksheet properties, and the only supported property is:
+
+- `hidden`: boolean
 
 ## Successful Behavior
 
-On success, `write` updates the workbook in place and exits successfully.
+On success, `write` updates the workbook in place, writes formatted JSON to standard output, and exits successfully.
 
-Observable write semantics include:
+Example:
 
-- values in the target range are overwritten
-- formula strings that begin with `=` are written as formulas
-- the input shape must match the target range exactly
+```json
+{
+  "path": "/Sheet1/A1:C3",
+  "kind": "range",
+  "action": "write",
+  "channel": "value"
+}
+```
 
-Unlike `new` and `read`, this command does not print an output path on success.
+For sheet property updates, `kind` is `sheet` and `channel` is `props`.
 
 ## Failure Conditions
 
 `write` fails when:
 
 - the workbook path cannot be resolved or opened
-- the target sheet does not exist and `--newsheet` is not set
-- `--newsheet` is set but the target sheet already exists
-- the range is invalid or includes a sheet name
-- `<values>` is not valid JSON
-- `<values>` is not a JSON 2-dimensional array
-- the row count does not match the range height
-- any row's column count does not match the range width
+- `<path>` does not follow supported path syntax
+- the path kind is not supported for the selected channel
+- the target sheet does not exist
+- zero or multiple update channels are provided
+- the selected JSON input cannot be parsed
+- a JSON 2-dimensional array is required but not provided
+- the input shape does not match the target range
+- a style object contains unsupported values
+- an unsupported property is specified in `--props`
 - required arguments are missing
-- extra arguments are provided
+- the workbook cannot be saved
 
-When the command fails, it exits with an error. Success is signaled by the updated workbook file and a successful process exit status, not by a generated artifact path.
+Callers can expect errors to distinguish at least these cases:
+
+- invalid path syntax
+- sheet not found
+- unsupported path kind
 
 ## Scope Notes
 
-This note defines the external contract of `write`: what the caller provides, what the command updates, and which inputs are rejected. It does not define backend-specific type coercion, internal write strategy, or spreadsheet-application behavior beyond what is observable from the command itself.
+This note defines the external contract of `write`. It does not define backend-specific type coercion or rendering differences beyond the accepted update channels.
 
 ## Related Notes
 
 - [[core-concept]]
 - [[read]]
+- [[add]]
+- [[remove]]
 
 [core-concept]: core-concept "Core Concepts of excel-cli"
 [read]: read "Behavior of the read Command"
+[add]: add "Behavior of the add Command"
+[remove]: remove "Behavior of the remove Command"

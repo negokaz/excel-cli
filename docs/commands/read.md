@@ -98,6 +98,8 @@ For range targets, `read` returns data that is compatible with the corresponding
 - `--formula` returns a JSON 2-dimensional array where formula cells contain formula strings and non-formula cells contain normal values
 - `--style` returns a JSON 2-dimensional array of style objects or `null`
 
+On the OLE backend, cells whose COM value is typed as `Date` or `Currency` are returned using each cell's displayed text.
+
 Example with `--value`:
 
 ```json

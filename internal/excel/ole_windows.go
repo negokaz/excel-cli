@@ -157,11 +157,16 @@ func variantToFormulaAny(v *ole.VARIANT) any {
 	}
 }
 
-// variantToValueString converts a VARIANT element from Range.Value2 to a display string.
+// variantToValueString converts a VARIANT element from Range.Value/Value2 to a string.
 // Strings and booleans are converted to their natural representation.
 // Numeric values are rendered as shortest exact decimal. Errors use Excel error notation.
 func variantToValueString(v *ole.VARIANT) string {
 	return stringifyCellValue(variantToValueAny(v))
+}
+
+func variantRequiresDisplayedText(v *ole.VARIANT) bool {
+	vt := v.VT &^ (ole.VT_ARRAY | ole.VT_BYREF)
+	return vt == ole.VT_DATE || vt == ole.VT_CY
 }
 
 func variantToValueAny(v *ole.VARIANT) any {

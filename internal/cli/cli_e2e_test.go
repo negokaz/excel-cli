@@ -2,12 +2,15 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/xuri/excelize/v2"
 )
@@ -118,6 +121,42 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("read returns date and currency values", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createCLIWorkbookFixture(t, workDir)
+
+		file, err := excelize.OpenFile(workbookPath)
+		if err != nil {
+			t.Fatalf("failed to open workbook: %v", err)
+		}
+		dateRaw := mustGetRawCellValue(t, file, "Data", "D2")
+		currencyRaw := mustGetRawCellValue(t, file, "Data", "E2")
+		if err := file.Close(); err != nil {
+			t.Fatalf("failed to close workbook: %v", err)
+		}
+
+		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Data/D2:E2", "--value")
+		if result.exitCode != 0 {
+			t.Fatalf("expected range read success, stderr=%s", result.stderr)
+		}
+
+		payload := mustParseRangeValuesPayload(t, result.stdout)
+		if payload.Backend == "ole" {
+			if got := payload.Data.Values[0][0]; got != "2025-01-02" {
+				t.Fatalf("expected formatted date from OLE, got %#v", got)
+			}
+			if got := payload.Data.Values[0][1]; got != "$1,234.50" {
+				t.Fatalf("expected formatted currency from OLE, got %#v", got)
+			}
+			return
+		}
+
+		assertJSONValueMatchesRawNumber(t, payload.Data.Values[0][0], dateRaw)
+		assertJSONValueMatchesRawNumber(t, payload.Data.Values[0][1], currencyRaw)
+	})
+
 	t.Run("write updates values formulas styles and props", func(t *testing.T) {
 		t.Parallel()
 
@@ -160,6 +199,70 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		if !visible {
 			t.Fatal("expected Hidden Sheet to become visible")
 		}
+	})
+
+	t.Run("write persists date and currency values and styles", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createCLIWorkbookFixture(t, workDir)
+
+		file, err := excelize.OpenFile(workbookPath)
+		if err != nil {
+			t.Fatalf("failed to open workbook: %v", err)
+		}
+		dateRaw := mustGetRawCellValue(t, file, "Data", "D2")
+		if err := file.Close(); err != nil {
+			t.Fatalf("failed to close workbook: %v", err)
+		}
+
+		valuePayload := fmt.Sprintf("[[%s,9876.5]]", dateRaw)
+		valueResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/D3:E3", "--value", valuePayload)
+		if valueResult.exitCode != 0 {
+			t.Fatalf("expected date/currency value write success, stderr=%s", valueResult.stderr)
+		}
+		styleResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/D3:E3", "--style", `[[{"numFmt":"yyyy-mm-dd"},{"numFmt":"$#,##0.00"}]]`)
+		if styleResult.exitCode != 0 {
+			t.Fatalf("expected date/currency style write success, stderr=%s", styleResult.stderr)
+		}
+
+		reopened, err := excelize.OpenFile(workbookPath)
+		if err != nil {
+			t.Fatalf("failed to reopen workbook: %v", err)
+		}
+		defer reopened.Close()
+
+		if got := mustGetRawCellValue(t, reopened, "Data", "D3"); got != dateRaw {
+			t.Fatalf("expected raw date serial %q, got %q", dateRaw, got)
+		}
+		if got := mustGetRawCellValue(t, reopened, "Data", "E3"); got != "9876.5" {
+			t.Fatalf("expected raw currency value 9876.5, got %q", got)
+		}
+		if got := mustGetCustomNumFmt(t, reopened, "Data", "D3"); got != "yyyy-mm-dd" {
+			t.Fatalf("expected date numFmt, got %q", got)
+		}
+		if got := mustGetCustomNumFmt(t, reopened, "Data", "E3"); got != "$#,##0.00" {
+			t.Fatalf("expected currency numFmt, got %q", got)
+		}
+
+		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Data/D3:E3", "--value")
+		if result.exitCode != 0 {
+			t.Fatalf("expected readback success, stderr=%s", result.stderr)
+		}
+
+		payload := mustParseRangeValuesPayload(t, result.stdout)
+		if payload.Backend == "ole" {
+			if got := payload.Data.Values[0][0]; got != "2025-01-02" {
+				t.Fatalf("expected formatted date from OLE, got %#v", got)
+			}
+			if got := payload.Data.Values[0][1]; got != "$9,876.50" {
+				t.Fatalf("expected formatted currency from OLE, got %#v", got)
+			}
+			return
+		}
+
+		assertJSONValueMatchesRawNumber(t, payload.Data.Values[0][0], dateRaw)
+		assertJSONValueMatchesRawNumber(t, payload.Data.Values[0][1], "9876.5")
 	})
 
 	t.Run("write reads JSON from stdin when payload is dash", func(t *testing.T) {
@@ -320,7 +423,11 @@ func createCLIWorkbookFixture(t *testing.T, dir string) string {
 	mustSetCellValue(t, workbook, "Data", "A2", "Bob")
 	mustSetCellValue(t, workbook, "Data", "B2", 90)
 	mustSetCellFormula(t, workbook, "Data", "C2", "=SUM(1,2)")
-	if err := workbook.SetSheetDimension("Data", "A1:C2"); err != nil {
+	mustSetCellValue(t, workbook, "Data", "D1", "Date")
+	mustSetCellValue(t, workbook, "Data", "E1", "Amount")
+	mustSetCellValue(t, workbook, "Data", "D2", time.Date(2025, time.January, 2, 0, 0, 0, 0, time.UTC))
+	mustSetCellValue(t, workbook, "Data", "E2", 1234.5)
+	if err := workbook.SetSheetDimension("Data", "A1:E2"); err != nil {
 		t.Fatalf("failed to set Data dimension: %v", err)
 	}
 	if err := workbook.SetSheetDimension("Hidden Sheet", "A1"); err != nil {
@@ -338,6 +445,22 @@ func createCLIWorkbookFixture(t *testing.T, dir string) string {
 	}
 	if err := workbook.SetCellStyle("Data", "C2", "C2", styleID); err != nil {
 		t.Fatalf("failed to apply style: %v", err)
+	}
+	dateNumFmt := "yyyy-mm-dd"
+	dateStyleID, err := workbook.NewStyle(&excelize.Style{CustomNumFmt: &dateNumFmt})
+	if err != nil {
+		t.Fatalf("failed to create date style: %v", err)
+	}
+	if err := workbook.SetCellStyle("Data", "D2", "D2", dateStyleID); err != nil {
+		t.Fatalf("failed to apply date style: %v", err)
+	}
+	currencyNumFmt := "$#,##0.00"
+	currencyStyleID, err := workbook.NewStyle(&excelize.Style{CustomNumFmt: &currencyNumFmt})
+	if err != nil {
+		t.Fatalf("failed to create currency style: %v", err)
+	}
+	if err := workbook.SetCellStyle("Data", "E2", "E2", currencyStyleID); err != nil {
+		t.Fatalf("failed to apply currency style: %v", err)
 	}
 
 	workbookPath := filepath.Join(dir, "fixture.xlsx")
@@ -358,6 +481,73 @@ func mustSetCellFormula(t *testing.T, workbook *excelize.File, sheet, cell, form
 	t.Helper()
 	if err := workbook.SetCellFormula(sheet, cell, formula); err != nil {
 		t.Fatalf("failed to set formula %s: %v", cell, err)
+	}
+}
+
+func mustGetRawCellValue(t *testing.T, workbook *excelize.File, sheet, cell string) string {
+	t.Helper()
+
+	value, err := workbook.GetCellValue(sheet, cell, excelize.Options{RawCellValue: true})
+	if err != nil {
+		t.Fatalf("failed to get raw cell value for %s: %v", cell, err)
+	}
+	return value
+}
+
+func mustGetCustomNumFmt(t *testing.T, workbook *excelize.File, sheet, cell string) string {
+	t.Helper()
+
+	styleID, err := workbook.GetCellStyle(sheet, cell)
+	if err != nil {
+		t.Fatalf("failed to get style id for %s: %v", cell, err)
+	}
+	style, err := workbook.GetStyle(styleID)
+	if err != nil {
+		t.Fatalf("failed to get style for %s: %v", cell, err)
+	}
+	if style.CustomNumFmt == nil {
+		return ""
+	}
+	return *style.CustomNumFmt
+}
+
+func mustParseRangeValuesPayload(t *testing.T, stdout string) struct {
+	Path    string `json:"path"`
+	Kind    string `json:"kind"`
+	Backend string `json:"backend"`
+	Data    struct {
+		Values [][]any `json:"values"`
+	} `json:"data"`
+} {
+	t.Helper()
+
+	var payload struct {
+		Path    string `json:"path"`
+		Kind    string `json:"kind"`
+		Backend string `json:"backend"`
+		Data    struct {
+			Values [][]any `json:"values"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("expected range values JSON: %v\n%s", err, stdout)
+	}
+	return payload
+}
+
+func assertJSONValueMatchesRawNumber(t *testing.T, got any, raw string) {
+	t.Helper()
+
+	want, err := strconv.ParseFloat(raw, 64)
+	if err != nil {
+		t.Fatalf("failed to parse raw numeric value %q: %v", raw, err)
+	}
+	number, ok := got.(float64)
+	if !ok {
+		t.Fatalf("expected JSON number for raw value %q, got %#v", raw, got)
+	}
+	if number != want {
+		t.Fatalf("expected JSON number %v, got %v", want, number)
 	}
 }
 

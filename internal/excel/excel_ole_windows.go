@@ -865,9 +865,31 @@ func (o *OleWorksheet) readRangeAs2DValues(rangeRef, property string, converter 
 	return result, nil
 }
 
-// GetValuesRange reads all cell values in rangeRef using Range.Value2 (bulk COM call).
-// String and boolean values are returned exactly. Numeric values are rendered as their
-// shortest exact decimal representation (no locale-specific number formatting is applied).
+func (o *OleWorksheet) getRangeDisplayedText(rng *ole.IDispatch) (string, error) {
+	text, err := oleutil.GetProperty(rng, "Text")
+	if err != nil {
+		return "", err
+	}
+	defer text.Clear()
+
+	if text.VT == ole.VT_EMPTY || text.VT == ole.VT_NULL {
+		return "", nil
+	}
+	if text.VT == ole.VT_BSTR {
+		return text.ToString(), nil
+	}
+	return stringifyCellValue(text.Value()), nil
+}
+
+func (o *OleWorksheet) getRelativeCellDisplayedText(rng *ole.IDispatch, row, col int) (string, error) {
+	cell := oleutil.MustGetProperty(rng, "Cells", row, col).ToIDispatch()
+	defer cell.Release()
+
+	return o.getRangeDisplayedText(cell)
+}
+
+// GetValuesRange reads all cell values in rangeRef using Range.Value (bulk COM call).
+// Date and currency typed cells are returned using their displayed text.
 func (o *OleWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
 	values, err := o.GetValuesRangeAny(rangeRef)
 	if err != nil {
@@ -877,11 +899,81 @@ func (o *OleWorksheet) GetValuesRange(rangeRef string) ([][]string, error) {
 }
 
 func (o *OleWorksheet) GetValuesRangeAny(rangeRef string) ([][]any, error) {
-	return o.readRangeAs2DValues(rangeRef, "Value2", variantToValueAny)
+	rng := oleutil.MustGetProperty(o.worksheet, "Range", rangeRef).ToIDispatch()
+	defer rng.Release()
+
+	v, err := oleutil.GetProperty(rng, "Value")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Value for range %s: %w", rangeRef, err)
+	}
+	defer v.Clear()
+
+	if v.VT&ole.VT_ARRAY == 0 {
+		if variantRequiresDisplayedText(v) {
+			text, err := o.getRangeDisplayedText(rng)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get Text for range %s: %w", rangeRef, err)
+			}
+			return [][]any{{text}}, nil
+		}
+		return [][]any{{variantToValueAny(v)}}, nil
+	}
+
+	sa := v.ToArray()
+
+	lb1, err := safeArrayGetLB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim1: %w", err)
+	}
+	ub1, err := safeArrayGetUB(sa.Array, 1)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim1: %w", err)
+	}
+	lb2, err := safeArrayGetLB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetLBound dim2: %w", err)
+	}
+	ub2, err := safeArrayGetUB(sa.Array, 2)
+	if err != nil {
+		return nil, fmt.Errorf("safeArrayGetUBound dim2: %w", err)
+	}
+
+	nRows := int(ub1 - lb1 + 1)
+	nCols := int(ub2 - lb2 + 1)
+
+	result := make([][]any, nRows)
+	for i := range result {
+		result[i] = make([]any, nCols)
+		for j := range result[i] {
+			elem, err := safeArray2DGetVariant(sa.Array, lb1+int32(i), lb2+int32(j))
+			if err != nil {
+				result[i][j] = ""
+				continue
+			}
+
+			if variantRequiresDisplayedText(&elem) {
+				text, textErr := o.getRelativeCellDisplayedText(rng, i+1, j+1)
+				elem.Clear()
+				if textErr != nil {
+					return nil, fmt.Errorf("failed to get Text for range %s cell [%d,%d]: %w", rangeRef, i+1, j+1, textErr)
+				}
+				result[i][j] = text
+				continue
+			}
+
+			result[i][j] = variantToValueAny(&elem)
+			elem.Clear()
+		}
+	}
+	return result, nil
 }
 
 func (o *OleWorksheet) GetValuesRangeString(rangeRef string) ([][]string, error) {
-	return o.readRangeAs2DStrings(rangeRef, "Value2", variantToValueString)
+	values, err := o.GetValuesRangeAny(rangeRef)
+	if err != nil {
+		return nil, err
+	}
+	return anyMatrixToStringMatrix(values), nil
 }
 
 // GetFormulasRange reads all cell formulas in rangeRef using Range.Formula (bulk COM call).

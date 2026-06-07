@@ -97,3 +97,31 @@ func TestSafeArray2DGetVariantMatchesRawSafeArrayDimensionOrder(t *testing.T) {
 		t.Fatalf("expected r2c3 at row 2 col 3, got %q", got.ToString())
 	}
 }
+
+func TestVariantRequiresDisplayedText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		vt   ole.VT
+		want bool
+	}{
+		{name: "date", vt: ole.VT_DATE, want: true},
+		{name: "currency", vt: ole.VT_CY, want: true},
+		{name: "date byref", vt: ole.VT_DATE | ole.VT_BYREF, want: true},
+		{name: "string", vt: ole.VT_BSTR, want: false},
+		{name: "number", vt: ole.VT_R8, want: false},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := variantRequiresDisplayedText(&ole.VARIANT{VT: tt.vt})
+			if got != tt.want {
+				t.Fatalf("variantRequiresDisplayedText(%v) = %v, want %v", tt.vt, got, tt.want)
+			}
+		})
+	}
+}

@@ -7,6 +7,7 @@ tags:
 # excel-cli Design Notes
 
 These notes organize the design intent and usage of `excel-cli`.
+They are maintained as [Foam notes](https://foamnotes.com), using standard Markdown with Foam wikilinks and frontmatter.
 
 ## Contents
 

@@ -3,6 +3,7 @@
 ## Documentation Alignment
 
 - Treat the design notes under `docs/` as the primary source of intent for implementation work in this repository.
+- The files under `docs/` are maintained in Foam format (Markdown with Foam wikilinks and frontmatter), so preserve that structure when editing.
 - Start with `docs/index.md` for navigation and `docs/core-concept.md` for cross-cutting behavior and architecture expectations.
 
 ## Change Workflow

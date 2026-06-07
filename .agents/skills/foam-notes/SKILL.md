@@ -1,6 +1,6 @@
 ---
 name: foam-notes
-description: Work with Foam note repositories through Foam CLI. Covers linting, listing, note inspection and lifecycle, outlines, links, tags, grep/search, and rename workflows.
+description: Work with Foam note-taking workspaces through Foam CLI. Covers linting, listing, note inspection and lifecycle, outlines, links, tags, grep/search, and rename workflows.
 ---
 
 # Foam Notes

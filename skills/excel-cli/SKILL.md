@@ -14,6 +14,14 @@ Available commands:
 - `remove`: remove a sheet
 - `export`: export HTML or PNG artifacts under `.excel-cli/`
 
+## Installation
+
+If you don't have `excel-cli` installed, you can install it with:
+
+```shell
+npm install -g @negokaz/excel-cli
+```
+
 ## Workflow
 
 Read an entire sheet:

@@ -29,7 +29,7 @@ This repository also includes an agent skill at [`skills/excel-cli/`](./skills/e
 You can install the skill with:
 
 ```sh
-gh skill preview negokaz/excel-cli excel-cli
+gh skill install negokaz/excel-cli excel-cli
 ```
 
 ## Command Summary

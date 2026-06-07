@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "CLI tool for Excel operations",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/negokaz/excel-cli.git"
+  },
+  "homepage": "https://github.com/negokaz/excel-cli#readme",
+  "bugs": {
+    "url": "https://github.com/negokaz/excel-cli/issues"
+  },
   "bin": {
     "excel-cli": "dist/launcher.js"
   },

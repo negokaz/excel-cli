@@ -17,11 +17,11 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
@@ -33,7 +33,7 @@ jobs:
           version: "~> v2"
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           registry-url: 'https://registry.npmjs.org'
@@ -57,6 +57,6 @@ jobs:
         run: npm run build
 
       - name: Publish to npmjs
-        run: npm publish --provenance --no-git-checks
+        run: npm publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

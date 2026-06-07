@@ -40,6 +40,14 @@ Read a small range:
 excel-cli read book.xlsx /Sheet1/A1:C3 --value
 ```
 
+Write values to a range:
+```shell
+# Write with a JSON argument:
+excel-cli write book.xlsx /Sheet1/A1 --value '[[123]]'
+# Write with JSON from standard input:
+echo '[[123]]' | excel-cli write book.xlsx /Sheet1/A1 --value -
+```
+
 Check layout or visual formatting:
 ```shell
 excel-cli export book.xlsx /Sheet1/A1:C20 --format png
@@ -58,6 +66,7 @@ excel-cli export book.xlsx /Sheet1/A1:C20 --format png
 - `query` is for workbook structure, not cell-content search. In the current design it enumerates sheets only at `/`.
 - `read` returns JSON. Range reads support `--value`, `--formula`, and `--style`.
 - `write` accepts JSON payloads that match the shape returned by `read`.
+- `write` reads the JSON payload from standard input when the selected update argument is `-`.
 - `export` writes artifacts under `.excel-cli/` and prints the absolute output path.
 - HTML export is good for broad inspection and grep-based workflows.
 - PNG export is good for visual layout checks.

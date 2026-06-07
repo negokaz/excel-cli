@@ -11,7 +11,7 @@ This note describes the behavior that callers can rely on when using `excel-cli 
 
 ## Command Form
 
-`excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)`
+`excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)`
 
 - `<file>` is the workbook to update.
 - `<path>` is the canonical target path inside the workbook.
@@ -19,6 +19,8 @@ This note describes the behavior that callers can rely on when using `excel-cli 
 - `--formula` writes formulas for strings that begin with `=` and normal values otherwise.
 - `--style` applies cell style updates.
 - `--props` updates supported properties of a non-range target.
+
+For each update channel, `-` means the JSON payload is read from standard input.
 
 The command requires `<file>`, `<path>`, and exactly one update channel.
 
@@ -47,7 +49,7 @@ Initial target support is:
 
 ### `--value`
 
-`--value` accepts a JSON 2-dimensional array.
+`--value` accepts a JSON 2-dimensional array, either inline or from standard input when `-` is provided.
 
 - the outer array represents rows
 - each inner array represents cells in that row
@@ -56,7 +58,7 @@ Initial target support is:
 
 ### `--formula`
 
-`--formula` accepts a JSON 2-dimensional array.
+`--formula` accepts a JSON 2-dimensional array, either inline or from standard input when `-` is provided.
 
 - the outer array represents rows
 - each inner array represents cells in that row
@@ -68,7 +70,7 @@ This channel is intended to round-trip with `read --formula`.
 
 ### `--style`
 
-`--style` accepts a JSON 2-dimensional array.
+`--style` accepts a JSON 2-dimensional array, either inline or from standard input when `-` is provided.
 
 - the outer array represents rows
 - each inner array represents cells in that row
@@ -88,7 +90,7 @@ Style enum values and validation rules are the same ones defined by the tool's s
 
 ### `--props`
 
-`--props` accepts a JSON object.
+`--props` accepts a JSON object, either inline or from standard input when `-` is provided.
 
 In the initial version, supported target properties are limited to worksheet properties, and the only supported property is:
 
@@ -109,6 +111,12 @@ Example:
 }
 ```
 
+Standard input example:
+
+```sh
+echo '[[123]]' | excel-cli write book.xlsx /Sheet1/A1 --value -
+```
+
 For sheet property updates, `kind` is `sheet` and `channel` is `props`.
 
 ## Failure Conditions
@@ -120,6 +128,7 @@ For sheet property updates, `kind` is `sheet` and `channel` is `props`.
 - the path kind is not supported for the selected channel
 - the target sheet does not exist
 - zero or multiple update channels are provided
+- `-` is provided but standard input cannot be read
 - the selected JSON input cannot be parsed
 - a JSON 2-dimensional array is required but not provided
 - the input shape does not match the target range

@@ -162,6 +162,31 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		}
 	})
 
+	t.Run("write reads JSON from stdin when payload is dash", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createCLIWorkbookFixture(t, workDir)
+
+		result := runCLICommandWithInput(t, binaryPath, workDir, `[["Carol",88]]`, "write", workbookPath, "/Data/A2:B2", "--value", "-")
+		if result.exitCode != 0 {
+			t.Fatalf("expected stdin write success, stderr=%s", result.stderr)
+		}
+
+		file, err := excelize.OpenFile(workbookPath)
+		if err != nil {
+			t.Fatalf("failed to reopen workbook: %v", err)
+		}
+		defer file.Close()
+
+		if value, _ := file.GetCellValue("Data", "A2"); value != "Carol" {
+			t.Fatalf("expected updated value from stdin, got %q", value)
+		}
+		if value, _ := file.GetCellValue("Data", "B2"); value != "88" {
+			t.Fatalf("expected updated numeric value from stdin, got %q", value)
+		}
+	})
+
 	t.Run("add and remove create and delete sheets", func(t *testing.T) {
 		t.Parallel()
 
@@ -339,8 +364,17 @@ func mustSetCellFormula(t *testing.T, workbook *excelize.File, sheet, cell, form
 func runCLICommand(t *testing.T, binaryPath, workDir string, args ...string) cliRunResult {
 	t.Helper()
 
+	return runCLICommandWithInput(t, binaryPath, workDir, "", args...)
+}
+
+func runCLICommandWithInput(t *testing.T, binaryPath, workDir, stdin string, args ...string) cliRunResult {
+	t.Helper()
+
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = workDir
+	if stdin != "" {
+		cmd.Stdin = strings.NewReader(stdin)
+	}
 	output, err := cmd.CombinedOutput()
 	text := string(output)
 	if err == nil {

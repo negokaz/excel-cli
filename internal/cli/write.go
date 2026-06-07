@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/negokaz/excel-cli/internal/excel"
@@ -11,7 +13,7 @@ import (
 
 func runWrite(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)")
+		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
 	}
 
 	fs := flag.NewFlagSet("write", flag.ContinueOnError)
@@ -26,7 +28,7 @@ func runWrite(args []string) error {
 		return err
 	}
 	if len(fs.Args()) != 0 {
-		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)")
+		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
 	}
 
 	target, err := parseTargetPath(rawPath)
@@ -73,7 +75,11 @@ func runWrite(args []string) error {
 		if target.Kind != pathKindRange {
 			return fmt.Errorf("unsupported path kind for channel value")
 		}
-		values, err := parseValuesJSON(*valuePayload)
+		payload, err := resolveWriteJSONPayload(*valuePayload)
+		if err != nil {
+			return err
+		}
+		values, err := parseValuesJSON(payload)
 		if err != nil {
 			return err
 		}
@@ -92,7 +98,11 @@ func runWrite(args []string) error {
 		if target.Kind != pathKindRange {
 			return fmt.Errorf("unsupported path kind for channel formula")
 		}
-		values, err := parseValuesJSON(*formulaPayload)
+		payload, err := resolveWriteJSONPayload(*formulaPayload)
+		if err != nil {
+			return err
+		}
+		values, err := parseValuesJSON(payload)
 		if err != nil {
 			return err
 		}
@@ -111,7 +121,11 @@ func runWrite(args []string) error {
 		if target.Kind != pathKindRange {
 			return fmt.Errorf("unsupported path kind for channel style")
 		}
-		styles, err := parseStylesJSON(*stylePayload)
+		payload, err := resolveWriteJSONPayload(*stylePayload)
+		if err != nil {
+			return err
+		}
+		styles, err := parseStylesJSON(payload)
 		if err != nil {
 			return err
 		}
@@ -139,7 +153,11 @@ func runWrite(args []string) error {
 		if target.Kind != pathKindSheet {
 			return fmt.Errorf("unsupported path kind for channel props")
 		}
-		props, err := parseSheetPropsJSON(*propsPayload)
+		payload, err := resolveWriteJSONPayload(*propsPayload)
+		if err != nil {
+			return err
+		}
+		props, err := parseSheetPropsJSON(payload)
 		if err != nil {
 			return err
 		}
@@ -174,6 +192,18 @@ func runWrite(args []string) error {
 		Action:  "write",
 		Channel: selected,
 	})
+}
+
+func resolveWriteJSONPayload(raw string) (string, error) {
+	if raw != "-" {
+		return raw, nil
+	}
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("failed to read JSON from stdin: %w", err)
+	}
+	return string(data), nil
 }
 
 type sheetProps struct {

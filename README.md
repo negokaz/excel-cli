@@ -37,7 +37,7 @@ gh skill install negokaz/excel-cli excel-cli
 ```text
 excel-cli read <file> <path> [--value | --formula | --style]
 excel-cli query <file> <path>
-excel-cli write <file> <path> (--value <json> | --formula <json> | --style <json> | --props <json>)
+excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)
 excel-cli add <file> <path>
 excel-cli remove <file> <path> [--force]
 excel-cli export <file> <path> --format <html|png> [--formula] [--style]
@@ -97,6 +97,7 @@ excel-cli write book.xlsx /Data/A2:B2 --value '[["Alice",95]]'
 excel-cli write book.xlsx /Data/C2 --formula '[["=SUM(3,4)"]]'
 excel-cli write book.xlsx /Data/A1:B1 --style '[[{"font":{"bold":true}}, null]]'
 excel-cli write book.xlsx /Hidden%20Sheet --props '{"hidden":false}'
+echo '[[123]]' | excel-cli write book.xlsx /Data/A1 --value -
 ```
 
 Create and remove worksheets:
@@ -123,6 +124,7 @@ HTML and PNG files are created under `.excel-cli/`.
 - `write --value`, `write --formula`, and `read --value`, `read --formula` are designed to round-trip through the same 2-dimensional JSON shape
 - `write --style` accepts a 2-dimensional array of style objects or `null`
 - `write --props` currently supports only worksheet `hidden`
+- `write` reads the JSON payload from standard input when the selected update argument is `-`
 - `remove` fails if the target sheet does not exist or if it is the workbook's only worksheet
 
 The design notes in [docs/](docs/index.md) are the primary reference for command contracts and migration intent.

@@ -24,12 +24,12 @@ In the initial version, `add` supports only worksheet creation.
 
 The supported form is:
 
-- `/<sheet>`
+- `<sheet>`
 
 Example:
 
 ```text
-excel-cli add book.xlsx /Sales
+excel-cli add book.xlsx Sales
 ```
 
 ## Successful Behavior
@@ -40,7 +40,7 @@ Example:
 
 ```json
 {
-  "path": "/Sales",
+  "path": "Sales",
   "kind": "sheet",
   "action": "add"
 }

@@ -10,8 +10,8 @@ import (
 )
 
 func runExport(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: excel-cli export <file> <path> --format <html|png> [options]")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: excel-cli export <file> [<path>] --format <html|png> [options]")
 	}
 
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
@@ -20,12 +20,12 @@ func runExport(args []string) error {
 	showStyle := fs.Bool("style", false, "Include style information in HTML export")
 
 	filePath := args[0]
-	rawPath := args[1]
-	if err := fs.Parse(args[2:]); err != nil {
+	rawPath, remaining := extractPathArg(args[1:])
+	if err := fs.Parse(remaining); err != nil {
 		return err
 	}
 	if len(fs.Args()) != 0 {
-		return fmt.Errorf("usage: excel-cli export <file> <path> --format <html|png> [options]")
+		return fmt.Errorf("usage: excel-cli export <file> [<path>] --format <html|png> [options]")
 	}
 	if *format != "html" && *format != "png" {
 		return fmt.Errorf("--format is missing or unsupported")

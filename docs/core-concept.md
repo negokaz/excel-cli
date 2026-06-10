@@ -24,10 +24,10 @@ This makes it explicit what should happen and where, which simplifies batch proc
 
 Initial canonical path examples:
 
-- `/`
-- `/Sheet1`
-- `/Sheet1/A1`
-- `/Sheet1/A1:C3`
+- `` (empty, workbook root)
+- `Sheet1`
+- `Sheet1/A1`
+- `Sheet1/A1:C3`
 
 ### 2. Favor Input and Output Formats That Are Easy to Process
 

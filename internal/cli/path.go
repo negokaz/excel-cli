@@ -24,47 +24,54 @@ type targetPath struct {
 }
 
 func parseTargetPath(raw string) (targetPath, error) {
-	if raw == "" || !strings.HasPrefix(raw, "/") {
-		return targetPath{}, fmt.Errorf("invalid path syntax: path must begin with /")
+	if strings.HasPrefix(raw, "/") {
+		return targetPath{}, fmt.Errorf("invalid path syntax: path must not begin with /")
 	}
-	if raw == "/" {
+	if raw == "" {
 		return targetPath{Kind: pathKindWorkbook}, nil
 	}
 
 	parts := strings.Split(raw, "/")
-	if len(parts) < 2 || parts[1] == "" {
-		return targetPath{}, fmt.Errorf("invalid path syntax: missing sheet segment")
-	}
-	if len(parts) > 3 {
+	if len(parts) > 2 {
 		return targetPath{}, fmt.Errorf("unsupported path kind: %s", raw)
 	}
 
-	sheetName, err := url.PathUnescape(parts[1])
+	sheetName, err := url.PathUnescape(parts[0])
 	if err != nil {
 		return targetPath{}, fmt.Errorf("invalid path syntax: %w", err)
 	}
 	if sheetName == "" {
 		return targetPath{}, fmt.Errorf("invalid path syntax: empty sheet segment")
 	}
-	if len(parts) == 2 {
+	if len(parts) == 1 {
 		return targetPath{Kind: pathKindSheet, SheetName: sheetName}, nil
 	}
 
-	if strings.Contains(parts[2], "!") {
+	if strings.Contains(parts[1], "!") {
 		return targetPath{}, fmt.Errorf("invalid path syntax: Excel-style references are not accepted")
 	}
-	if _, _, _, _, err := excel.ParseRange(parts[2]); err != nil {
+	if _, _, _, _, err := excel.ParseRange(parts[1]); err != nil {
 		return targetPath{}, fmt.Errorf("invalid path syntax: %w", err)
 	}
 	return targetPath{
 		Kind:      pathKindRange,
 		SheetName: sheetName,
-		RangeRef:  excel.NormalizeRange(parts[2]),
+		RangeRef:  excel.NormalizeRange(parts[1]),
 	}, nil
 }
 
 func canonicalSheetPath(sheetName string) string {
-	return "/" + canonicalPathSegment(sheetName)
+	return canonicalPathSegment(sheetName)
+}
+
+// extractPathArg separates the optional path argument from remaining args.
+// If args is non-empty and the first element does not start with '-', it is
+// treated as the path argument and removed from the remaining slice.
+func extractPathArg(args []string) (path string, remaining []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
+	}
+	return "", args
 }
 
 func canonicalRangePath(sheetName, rangeRef string) string {
@@ -140,7 +147,7 @@ func fromHexDigit(value byte) (byte, bool) {
 func (p targetPath) Canonical() string {
 	switch p.Kind {
 	case pathKindWorkbook:
-		return "/"
+		return ""
 	case pathKindSheet:
 		return canonicalSheetPath(p.SheetName)
 	case pathKindRange:

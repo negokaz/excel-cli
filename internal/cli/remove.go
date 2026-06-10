@@ -9,20 +9,20 @@ import (
 )
 
 func runRemove(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: excel-cli remove <file> <path> [--force]")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: excel-cli remove <file> [<path>] [--force]")
 	}
 
 	fs := flag.NewFlagSet("remove", flag.ContinueOnError)
 	force := fs.Bool("force", false, "Delete the target instead of dry-run validation")
 
 	filePath := args[0]
-	rawPath := args[1]
-	if err := fs.Parse(args[2:]); err != nil {
+	rawPath, remaining := extractPathArg(args[1:])
+	if err := fs.Parse(remaining); err != nil {
 		return err
 	}
 	if len(fs.Args()) != 0 {
-		return fmt.Errorf("usage: excel-cli remove <file> <path> [--force]")
+		return fmt.Errorf("usage: excel-cli remove <file> [<path>] [--force]")
 	}
 
 	target, err := parseTargetPath(rawPath)

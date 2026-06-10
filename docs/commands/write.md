@@ -30,10 +30,10 @@ The update channels are mutually exclusive.
 
 Initial target support is:
 
-- `--value`: `/<sheet>/A1` or `/<sheet>/A1:C3`
-- `--formula`: `/<sheet>/A1` or `/<sheet>/A1:C3`
-- `--style`: `/<sheet>/A1` or `/<sheet>/A1:C3`
-- `--props`: `/<sheet>`
+- `--value`: `<sheet>/A1` or `<sheet>/A1:C3`
+- `--formula`: `<sheet>/A1` or `<sheet>/A1:C3`
+- `--style`: `<sheet>/A1` or `<sheet>/A1:C3`
+- `--props`: `<sheet>`
 
 `write` does not support workbook root updates in the initial version.
 
@@ -43,7 +43,7 @@ Initial target support is:
 
 `<path>` must use canonical path syntax.
 
-- the path must begin with `/`
+- the path must not begin with `/`
 - sheet names use canonical path segments: Unicode characters are preserved, while ASCII characters that require escaping remain percent-encoded
 - range targets are single cells or rectangular ranges only
 
@@ -104,7 +104,7 @@ Example:
 
 ```json
 {
-  "path": "/Sheet1/A1:C3",
+  "path": "Sheet1/A1:C3",
   "kind": "range",
   "action": "write",
   "channel": "value"
@@ -114,7 +114,7 @@ Example:
 Standard input example:
 
 ```sh
-echo '[[123]]' | excel-cli write book.xlsx /Sheet1/A1 --value -
+echo '[[123]]' | excel-cli write book.xlsx Sheet1/A1 --value -
 ```
 
 For sheet property updates, `kind` is `sheet` and `channel` is `props`.

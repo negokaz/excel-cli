@@ -26,7 +26,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		result := runCLICommand(t, binaryPath, workDir, "query", workbookPath, "/")
+		result := runCLICommand(t, binaryPath, workDir, "query", workbookPath, "")
 		if result.exitCode != 0 {
 			t.Fatalf("expected success, stderr=%s", result.stderr)
 		}
@@ -44,16 +44,16 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		if err := json.Unmarshal([]byte(result.stdout), &payload); err != nil {
 			t.Fatalf("expected JSON output: %v\n%s", err, result.stdout)
 		}
-		if payload.Path != "/" || payload.Kind != "sheetCollection" {
+		if payload.Path != "" || payload.Kind != "sheetCollection" {
 			t.Fatalf("unexpected payload: %+v", payload)
 		}
 		if len(payload.Items) != 3 {
 			t.Fatalf("expected 3 sheets, got %d", len(payload.Items))
 		}
-		if payload.Items[1].Path != "/Hidden%20Sheet" {
+		if payload.Items[1].Path != "Hidden%20Sheet" {
 			t.Fatalf("expected canonical encoded path, got %+v", payload.Items[1])
 		}
-		if payload.Items[2].Path != "/テスト2" {
+		if payload.Items[2].Path != "テスト2" {
 			t.Fatalf("expected canonical unicode path, got %+v", payload.Items[2])
 		}
 	})
@@ -64,7 +64,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		workbookResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/")
+		workbookResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "")
 		if workbookResult.exitCode != 0 {
 			t.Fatalf("expected workbook read success, stderr=%s", workbookResult.stderr)
 		}
@@ -82,7 +82,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected workbook payload: %+v", workbookPayload)
 		}
 
-		sheetResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Hidden%20Sheet")
+		sheetResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "Hidden%20Sheet")
 		if sheetResult.exitCode != 0 {
 			t.Fatalf("expected sheet read success, stderr=%s", sheetResult.stderr)
 		}
@@ -102,7 +102,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 			t.Fatalf("unexpected sheet payload: %+v", sheetPayload)
 		}
 
-		rangeResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Data/C2", "--formula")
+		rangeResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "Data/C2", "--formula")
 		if rangeResult.exitCode != 0 {
 			t.Fatalf("expected range read success, stderr=%s", rangeResult.stderr)
 		}
@@ -137,7 +137,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 			t.Fatalf("failed to close workbook: %v", err)
 		}
 
-		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Data/D2:E2", "--value")
+		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "Data/D2:E2", "--value")
 		if result.exitCode != 0 {
 			t.Fatalf("expected range read success, stderr=%s", result.stderr)
 		}
@@ -163,19 +163,19 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		valueResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/A2:B2", "--value", `[["Alice",95]]`)
+		valueResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Data/A2:B2", "--value", `[["Alice",95]]`)
 		if valueResult.exitCode != 0 {
 			t.Fatalf("expected value write success, stderr=%s", valueResult.stderr)
 		}
-		formulaResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/C2", "--formula", `[[ "=SUM(3,4)" ]]`)
+		formulaResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Data/C2", "--formula", `[[ "=SUM(3,4)" ]]`)
 		if formulaResult.exitCode != 0 {
 			t.Fatalf("expected formula write success, stderr=%s", formulaResult.stderr)
 		}
-		styleResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/A1:A1", "--style", `[[{"font":{"bold":true}}]]`)
+		styleResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Data/A1:A1", "--style", `[[{"font":{"bold":true}}]]`)
 		if styleResult.exitCode != 0 {
 			t.Fatalf("expected style write success, stderr=%s", styleResult.stderr)
 		}
-		propsResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Hidden%20Sheet", "--props", `{"hidden":false}`)
+		propsResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Hidden%20Sheet", "--props", `{"hidden":false}`)
 		if propsResult.exitCode != 0 {
 			t.Fatalf("expected props write success, stderr=%s", propsResult.stderr)
 		}
@@ -217,11 +217,11 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		}
 
 		valuePayload := fmt.Sprintf("[[%s,9876.5]]", dateRaw)
-		valueResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/D3:E3", "--value", valuePayload)
+		valueResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Data/D3:E3", "--value", valuePayload)
 		if valueResult.exitCode != 0 {
 			t.Fatalf("expected date/currency value write success, stderr=%s", valueResult.stderr)
 		}
-		styleResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "/Data/D3:E3", "--style", `[[{"numFmt":"yyyy-mm-dd"},{"numFmt":"$#,##0.00"}]]`)
+		styleResult := runCLICommand(t, binaryPath, workDir, "write", workbookPath, "Data/D3:E3", "--style", `[[{"numFmt":"yyyy-mm-dd"},{"numFmt":"$#,##0.00"}]]`)
 		if styleResult.exitCode != 0 {
 			t.Fatalf("expected date/currency style write success, stderr=%s", styleResult.stderr)
 		}
@@ -245,7 +245,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 			t.Fatalf("expected currency numFmt, got %q", got)
 		}
 
-		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "/Data/D3:E3", "--value")
+		result := runCLICommand(t, binaryPath, workDir, "read", workbookPath, "Data/D3:E3", "--value")
 		if result.exitCode != 0 {
 			t.Fatalf("expected readback success, stderr=%s", result.stderr)
 		}
@@ -271,7 +271,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		result := runCLICommandWithInput(t, binaryPath, workDir, `[["Carol",88]]`, "write", workbookPath, "/Data/A2:B2", "--value", "-")
+		result := runCLICommandWithInput(t, binaryPath, workDir, `[["Carol",88]]`, "write", workbookPath, "Data/A2:B2", "--value", "-")
 		if result.exitCode != 0 {
 			t.Fatalf("expected stdin write success, stderr=%s", result.stderr)
 		}
@@ -296,15 +296,15 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		addResult := runCLICommand(t, binaryPath, workDir, "add", workbookPath, "/Sales")
+		addResult := runCLICommand(t, binaryPath, workDir, "add", workbookPath, "Sales")
 		if addResult.exitCode != 0 {
 			t.Fatalf("expected add success, stderr=%s", addResult.stderr)
 		}
-		dryRunResult := runCLICommand(t, binaryPath, workDir, "remove", workbookPath, "/Sales")
+		dryRunResult := runCLICommand(t, binaryPath, workDir, "remove", workbookPath, "Sales")
 		if dryRunResult.exitCode != 0 {
 			t.Fatalf("expected dry-run remove success, stderr=%s", dryRunResult.stderr)
 		}
-		forceResult := runCLICommand(t, binaryPath, workDir, "remove", workbookPath, "/Sales", "--force")
+		forceResult := runCLICommand(t, binaryPath, workDir, "remove", workbookPath, "Sales", "--force")
 		if forceResult.exitCode != 0 {
 			t.Fatalf("expected forced remove success, stderr=%s", forceResult.stderr)
 		}
@@ -327,7 +327,7 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
 
-		result := runCLICommand(t, binaryPath, workDir, "export", workbookPath, "/Data/A1:C2", "--format", "html", "--formula", "--style")
+		result := runCLICommand(t, binaryPath, workDir, "export", workbookPath, "Data/A1:C2", "--format", "html", "--formula", "--style")
 		if result.exitCode != 0 {
 			t.Fatalf("expected export success, stderr=%s", result.stderr)
 		}
@@ -353,12 +353,47 @@ func TestCLIDesignEndToEnd(t *testing.T) {
 
 		workDir := t.TempDir()
 		workbookPath := createCLIWorkbookFixture(t, workDir)
-		result := runCLICommand(t, binaryPath, workDir, "export", workbookPath, "/Data", "--format", "png")
+		result := runCLICommand(t, binaryPath, workDir, "export", workbookPath, "Data", "--format", "png")
 		if result.exitCode == 0 {
 			t.Fatalf("expected png export failure on non-Windows, stdout=%s", result.stdout)
 		}
 		if !strings.Contains(result.stderr, "PNG capture") && !strings.Contains(result.stderr, "OLE") {
 			t.Fatalf("expected OLE-related error, stderr=%s", result.stderr)
+		}
+	})
+
+	t.Run("path defaults to workbook root when omitted", func(t *testing.T) {
+		t.Parallel()
+
+		workDir := t.TempDir()
+		workbookPath := createCLIWorkbookFixture(t, workDir)
+
+		readResult := runCLICommand(t, binaryPath, workDir, "read", workbookPath)
+		if readResult.exitCode != 0 {
+			t.Fatalf("expected read without path to succeed, stderr=%s", readResult.stderr)
+		}
+		var readPayload struct {
+			Kind string `json:"kind"`
+		}
+		if err := json.Unmarshal([]byte(readResult.stdout), &readPayload); err != nil {
+			t.Fatalf("expected JSON output: %v", err)
+		}
+		if readPayload.Kind != "workbook" {
+			t.Fatalf("expected workbook kind when path omitted, got %s", readPayload.Kind)
+		}
+
+		queryResult := runCLICommand(t, binaryPath, workDir, "query", workbookPath)
+		if queryResult.exitCode != 0 {
+			t.Fatalf("expected query without path to succeed, stderr=%s", queryResult.stderr)
+		}
+		var queryPayload struct {
+			Kind string `json:"kind"`
+		}
+		if err := json.Unmarshal([]byte(queryResult.stdout), &queryPayload); err != nil {
+			t.Fatalf("expected JSON output: %v", err)
+		}
+		if queryPayload.Kind != "sheetCollection" {
+			t.Fatalf("expected sheetCollection kind when path omitted, got %s", queryPayload.Kind)
 		}
 	})
 }

@@ -8,11 +8,15 @@ import (
 )
 
 func runAdd(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("usage: excel-cli add <file> <path>")
+	if len(args) < 1 || len(args) > 2 {
+		return fmt.Errorf("usage: excel-cli add <file> [<path>]")
 	}
 
-	target, err := parseTargetPath(args[1])
+	rawPath := ""
+	if len(args) == 2 {
+		rawPath = args[1]
+	}
+	target, err := parseTargetPath(rawPath)
 	if err != nil {
 		return err
 	}

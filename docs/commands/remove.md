@@ -25,7 +25,7 @@ In the initial version, `remove` supports only worksheet deletion.
 
 The supported form is:
 
-- `/<sheet>`
+- `<sheet>`
 
 ## Successful Behavior
 
@@ -37,7 +37,7 @@ Example:
 
 ```json
 {
-  "path": "/Sales",
+  "path": "Sales",
   "kind": "sheet",
   "action": "remove",
   "wouldRemove": true
@@ -52,7 +52,7 @@ Example:
 
 ```json
 {
-  "path": "/Sales",
+  "path": "Sales",
   "kind": "sheet",
   "action": "remove"
 }

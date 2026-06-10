@@ -8,12 +8,12 @@ import (
 const usage = `excel-cli - Excel file tool
 
 Usage:
-  excel-cli read <file> <path> [--value | --formula | --style]
-  excel-cli query <file> <path>
-  excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)
-  excel-cli add <file> <path>
-  excel-cli remove <file> <path> [--force]
-  excel-cli export <file> <path> --format <html|png> [options]
+  excel-cli read <file> [<path>] [--value | --formula | --style]
+  excel-cli query <file> [<path>]
+  excel-cli write <file> [<path>] (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)
+  excel-cli add <file> [<path>]
+  excel-cli remove <file> [<path>] [--force]
+  excel-cli export <file> [<path>] --format <html|png> [options]
 
 Commands:
   read     Read workbook, sheet, or range data as JSON

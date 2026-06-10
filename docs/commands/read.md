@@ -11,15 +11,15 @@ This note describes the behavior that callers can rely on when using `excel-cli 
 
 ## Command Form
 
-`excel-cli read <file> <path> [--value | --formula | --style]`
+`excel-cli read <file> [<path>] [--value | --formula | --style]`
 
 - `<file>` is the workbook to inspect.
-- `<path>` is the canonical target path inside the workbook.
+- `<path>` is the canonical target path inside the workbook. When omitted, defaults to `""` (workbook root).
 - `--value` returns displayed values for a range target.
 - `--formula` returns formulas where present, and normal values otherwise, for a range target.
 - `--style` returns style data for a range target.
 
-The command requires `<file>` and `<path>`.
+The command requires `<file>`. `<path>` is optional and defaults to `""` (workbook root) when omitted.
 
 The options `--value`, `--formula`, and `--style` are mutually exclusive. If none is specified, range targets default to `--value`.
 
@@ -27,14 +27,14 @@ The options `--value`, `--formula`, and `--style` are mutually exclusive. If non
 
 Initial supported path kinds are:
 
-- `/` for the workbook root
-- `/<sheet>` for a worksheet
-- `/<sheet>/A1` for a single cell, treated as a `range`
-- `/<sheet>/A1:C3` for a rectangular range
+- `` (empty string) for the workbook root
+- `<sheet>` for a worksheet
+- `<sheet>/A1` for a single cell, treated as a `range`
+- `<sheet>/A1:C3` for a rectangular range
 
 Path rules:
 
-- the path must begin with `/`
+- the path must not begin with `/`
 - sheet names use canonical path segments: Unicode characters are preserved, while ASCII characters that require escaping remain percent-encoded
 - cell columns are uppercase in canonical output
 - Excel-style references such as `Sheet1!A1:C3` are not accepted
@@ -52,13 +52,13 @@ All successful responses include:
 
 ### Workbook Output
 
-For `/`, `read` returns minimal workbook metadata.
+For `` (empty string), `read` returns minimal workbook metadata.
 
 Example:
 
 ```json
 {
-  "path": "/",
+  "path": "",
   "kind": "workbook",
   "backend": "ole",
   "data": {
@@ -69,7 +69,7 @@ Example:
 
 ### Sheet Output
 
-For `/<sheet>`, `read` returns minimal sheet metadata.
+For `<sheet>`, `read` returns minimal sheet metadata.
 
 - `name`
 - `hidden`
@@ -79,7 +79,7 @@ Example:
 
 ```json
 {
-  "path": "/Sheet1",
+  "path": "Sheet1",
   "kind": "sheet",
   "backend": "ole",
   "data": {
@@ -104,7 +104,7 @@ Example with `--value`:
 
 ```json
 {
-  "path": "/Sheet1/A1:B2",
+  "path": "Sheet1/A1:B2",
   "kind": "range",
   "backend": "ole",
   "data": {
@@ -120,7 +120,7 @@ Example with `--formula`:
 
 ```json
 {
-  "path": "/Sheet1/A1:B2",
+  "path": "Sheet1/A1:B2",
   "kind": "range",
   "backend": "ole",
   "data": {
@@ -136,7 +136,7 @@ Example with `--style`:
 
 ```json
 {
-  "path": "/Sheet1/A1:B1",
+  "path": "Sheet1/A1:B1",
   "kind": "range",
   "backend": "ole",
   "data": {

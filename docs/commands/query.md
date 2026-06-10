@@ -11,20 +11,20 @@ This note describes the behavior that callers can rely on when using `excel-cli 
 
 ## Command Form
 
-`excel-cli query <file> <path>`
+`excel-cli query <file> [<path>]`
 
 - `<file>` is the workbook to inspect.
-- `<path>` is the collection path to enumerate.
+- `<path>` is the collection path to enumerate. When omitted, defaults to `""` (workbook root).
 
-The command requires both `<file>` and `<path>`.
+The command requires `<file>`. `<path>` is optional and defaults to `""` (workbook root) when omitted.
 
 ## Supported Paths
 
 In the initial version, `query` formally supports only the workbook root:
 
-- `/`
+- `` (empty string)
 
-The meaning of `query /` is "enumerate the workbook's direct sheet collection".
+The meaning of `query ""` is "enumerate the workbook's direct sheet collection".
 
 `query` is not a recursive search command in the initial version. It does not search descendants or perform pattern matching.
 
@@ -45,17 +45,17 @@ Example:
 
 ```json
 {
-  "path": "/",
+  "path": "",
   "kind": "sheetCollection",
   "backend": "ole",
   "items": [
     {
-      "path": "/Sheet1",
+      "path": "Sheet1",
       "kind": "sheet",
       "name": "Sheet1"
     },
     {
-      "path": "/Sales",
+      "path": "Sales",
       "kind": "sheet",
       "name": "Sales"
     }

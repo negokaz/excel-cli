@@ -8,11 +8,15 @@ import (
 )
 
 func runQuery(args []string) error {
-	if len(args) != 2 {
-		return fmt.Errorf("usage: excel-cli query <file> <path>")
+	if len(args) < 1 || len(args) > 2 {
+		return fmt.Errorf("usage: excel-cli query <file> [<path>]")
 	}
 
-	target, err := parseTargetPath(args[1])
+	rawPath := ""
+	if len(args) == 2 {
+		rawPath = args[1]
+	}
+	target, err := parseTargetPath(rawPath)
 	if err != nil {
 		return err
 	}
@@ -63,7 +67,7 @@ func runQuery(args []string) error {
 		Backend string `json:"backend"`
 		Items   any    `json:"items"`
 	}{
-		Path:    "/",
+		Path:    target.Canonical(),
 		Kind:    "sheetCollection",
 		Backend: workbook.GetBackendName(),
 		Items:   items,

@@ -23,9 +23,9 @@ The command requires `<file>`, `<path>`, and `--format`.
 
 In the initial version, `export` supports:
 
-- `/<sheet>`
-- `/<sheet>/A1`
-- `/<sheet>/A1:C3`
+- `<sheet>`
+- `<sheet>/A1`
+- `<sheet>/A1:C3`
 
 Workbook root export is not supported in the initial version.
 

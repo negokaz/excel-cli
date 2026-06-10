@@ -12,8 +12,8 @@ import (
 )
 
 func runWrite(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: excel-cli write <file> [<path>] (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
 	}
 
 	fs := flag.NewFlagSet("write", flag.ContinueOnError)
@@ -23,12 +23,12 @@ func runWrite(args []string) error {
 	propsPayload := fs.String("props", "", "Update properties")
 
 	filePath := args[0]
-	rawPath := args[1]
-	if err := fs.Parse(args[2:]); err != nil {
+	rawPath, remaining := extractPathArg(args[1:])
+	if err := fs.Parse(remaining); err != nil {
 		return err
 	}
 	if len(fs.Args()) != 0 {
-		return fmt.Errorf("usage: excel-cli write <file> <path> (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
+		return fmt.Errorf("usage: excel-cli write <file> [<path>] (--value <json|-> | --formula <json|-> | --style <json|-> | --props <json|->)")
 	}
 
 	target, err := parseTargetPath(rawPath)

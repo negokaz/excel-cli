@@ -3,6 +3,9 @@ import * as fs from 'fs';
 import { resolveBinaryPath } from './resolve-binary-path';
 
 type ProcessLike = Pick<NodeJS.Process, 'arch' | 'argv' | 'exit' | 'platform'> & {
+  stdin: {
+    isTTY?: boolean;
+  };
   stderr: {
     write(buffer: string | Uint8Array): boolean;
   };
@@ -10,6 +13,7 @@ type ProcessLike = Pick<NodeJS.Process, 'arch' | 'argv' | 'exit' | 'platform'> &
 
 type LauncherDependencies = {
   existsSync: typeof fs.existsSync;
+  readStdin(): Buffer;
   spawnSync(
     command: string,
     args: string[],
@@ -36,7 +40,19 @@ function runLauncher(
     baseDir,
     dependencies.existsSync,
   );
-  const result = dependencies.spawnSync(binaryPath, runtimeProcess.argv.slice(2), { stdio: 'inherit' });
+
+  let result: Pick<childProcess.SpawnSyncReturns<Buffer>, 'error' | 'signal' | 'status'>;
+  if (runtimeProcess.stdin.isTTY) {
+    result = dependencies.spawnSync(binaryPath, runtimeProcess.argv.slice(2), {
+      stdio: 'inherit'
+    });
+  } else {
+    const stdinData = dependencies.readStdin();
+    result = dependencies.spawnSync(binaryPath, runtimeProcess.argv.slice(2), {
+      stdio: ['pipe', 'inherit', 'inherit'],
+      input: stdinData,
+    });
+  }
 
   if (result.error !== undefined) {
     throw result.error;
@@ -59,6 +75,7 @@ export function executeLauncher(baseDir: string, runtimeProcess: ProcessLike): v
   try {
     runLauncher(baseDir, runtimeProcess, {
       existsSync: fs.existsSync,
+      readStdin: () => fs.readFileSync(0),
       spawnSync: childProcess.spawnSync,
     });
   } catch (error) {
